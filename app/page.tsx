@@ -12,69 +12,125 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ConnectWallet } from "@/components/connect-wallet";
 import Link from "next/link";
+import { resolveEnsWithCcip } from "@/lib/ccip-read";
+import { Hex } from "viem";
 
-type PortalStatus = "IDLE" | "LOADING" | "BLOCKED" | "SUCCESS";
+type AppState = "IDLE" | "CHECKING" | "DENIED" | "BROWSER";
+
+// Real Custom Resolver on Sepolia
+const RESOLVER_ADDRESS = "0xb4e2ed5879b924e971a3A61FAF7Cb0d2d88bB982";
 
 export default function Home() {
-  const { isConnected } = useAccount();
-  const [query, setQuery] = useState("");
-  const [portalStatus, setPortalStatus] = useState<PortalStatus>("IDLE");
-  const [targetUrl, setTargetUrl] = useState("");
-  const [price, setPrice] = useState("0");
+  const { address, isConnected } = useAccount();
+  const [appState, setAppState] = useState<AppState>("IDLE");
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSearch = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  // AES encryption key (must match server)
+  const AES_KEY = 'econwall-secure-key-for-urls!!'.padEnd(32, '0').slice(0, 32);
 
-    setPortalStatus("LOADING");
+  // Convert string to ArrayBuffer
+  const str2ab = (str: string): ArrayBuffer => {
+    const buf = new ArrayBuffer(str.length);
+    const bufView = new Uint8Array(buf);
+    for (let i = 0; i < str.length; i++) {
+      bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
+  };
 
-    // --- LOGIC BRANCH 1: Is it a protected ENS domain? ---
-    if (query.toLowerCase().endsWith(".eth")) {
-      try {
-        const res = await fetch(`/api/resolve?q=${query}`);
-        const data = await res.json();
+  // Convert ArrayBuffer to hex string
+  const ab2hex = (buffer: ArrayBuffer): string => {
+    return Array.from(new Uint8Array(buffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  };
 
-        if (data.status === "BLOCKED") {
-          setPrice(data.price);
-          setPortalStatus("BLOCKED");
-        } else if (data.status === "OPEN") {
-          setTargetUrl(data.url);
-          setPortalStatus("SUCCESS");
-          setTimeout(() => {
-            window.location.href = data.url;
-          }, 1500);
-        }
-      } catch (err) {
-        console.error("Gateway Error", err);
-        setPortalStatus("IDLE");
+  // AES-256-CBC encrypt using Web Crypto API
+  const encryptUrl = async (url: string): Promise<string> => {
+    const keyData = str2ab(AES_KEY);
+    const key = await crypto.subtle.importKey(
+      'raw', keyData, { name: 'AES-CBC' }, false, ['encrypt']
+    );
+
+    // Generate random 16-byte IV
+    const iv = crypto.getRandomValues(new Uint8Array(16));
+
+    // Encrypt
+    const encoded = new TextEncoder().encode(url);
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-CBC', iv: iv },
+      key,
+      encoded
+    );
+
+    // Return: iv (hex) + ciphertext (hex)
+    return ab2hex(iv.buffer) + ab2hex(encrypted);
+  };
+
+  // Check EWT token access
+  const handleCheckAccess = async () => {
+    if (!address) return;
+
+    setAppState("CHECKING");
+    setError(null);
+
+    // 1. Try "The Real Way" (CCIP-Read) first
+    try {
+      console.log("Attempting On-Chain CCIP-Read...");
+      await resolveEnsWithCcip(RESOLVER_ADDRESS as Hex, "econwall.eth", address as Hex);
+      setAppState("BROWSER");
+      return;
+    } catch (err) {
+      console.warn("CCIP-Read failed (falling back to API shortcut):", err);
+    }
+
+    // 2. Fallback: "The Hackathon Way" (API Shortcut)
+    try {
+      const res = await fetch("/api/gateway", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sender: address }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAppState("DENIED");
+        setError(data.error || "Access denied - No EWT tokens");
+        return;
       }
-    }
-    // --- LOGIC BRANCH 2: Is it a normal URL? (google.com) ---
-    else if (query.includes(".") && !query.includes(" ")) {
-      const url = query.startsWith("http") ? query : `https://${query}`;
-      setTargetUrl(url);
-      setPortalStatus("SUCCESS");
-      setTimeout(() => {
-        window.location.href = url;
-      }, 800);
-    }
-    // --- LOGIC BRANCH 3: Is it just random words? ---
-    else {
-      window.open(`https://duckduckgo.com/?q=${encodeURIComponent(query)}`, "_blank");
-      setPortalStatus("IDLE");
+
+      // Access granted - show browser
+      setAppState("BROWSER");
+    } catch (err: any) {
+      console.error("Access check error:", err);
+      setAppState("DENIED");
+      setError(err.message || "Network error");
     }
   };
 
-  const deployAgentAndPay = () => {
-    // TODO: Integrate LI.FI widget here
-    alert("LI.FI Agent deployment coming soon!");
+  // Navigate to proxy
+  const handleBrowse = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!url.trim()) return;
+
+    let targetUrl = url;
+    if (!targetUrl.startsWith("http")) {
+      targetUrl = "https://" + targetUrl;
+    }
+
+    const encrypted = await encryptUrl(targetUrl);
+    window.location.href = `/api/proxy?u=${encrypted}`;
   };
 
-  const resetPortal = () => {
-    setPortalStatus("IDLE");
-    setQuery("");
-    setPrice("0");
-  };
+  // Quick links
+  const quickLinks = [
+    { name: "Wikipedia", url: "wikipedia.org" },
+    { name: "GitHub", url: "github.com" },
+    { name: "DuckDuckGo", url: "duckduckgo.com" },
+    { name: "Hacker News", url: "news.ycombinator.com" },
+  ];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -84,33 +140,22 @@ export default function Home() {
           <div className="text-xl font-semibold tracking-tight text-foreground">
             ECONWALL
           </div>
-          <div className="text-muted-foreground text-sm">PORTAL</div>
+          <div className="text-muted-foreground text-sm">
+            {appState === "BROWSER" ? "BROWSER" : "PORTAL"}
+          </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Status:</span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className={`w-2 h-2 rounded-full ${portalStatus === "BLOCKED"
-                  ? "bg-red-500"
-                  : portalStatus === "LOADING"
-                    ? "bg-yellow-500 animate-pulse"
-                    : portalStatus === "SUCCESS"
-                      ? "bg-green-500"
-                      : "bg-green-500"
-                  }`}
-              ></span>
-              <span className="text-foreground font-medium">
-                {portalStatus === "BLOCKED"
-                  ? "Blocked"
-                  : portalStatus === "LOADING"
-                    ? "Resolving..."
-                    : portalStatus === "SUCCESS"
-                      ? "Access Granted"
-                      : "Online"}
+          {appState === "BROWSER" && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Session:</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                <span className="text-foreground font-medium font-mono">
+                  {address?.slice(0, 6)}...
+                </span>
               </span>
-            </span>
-          </div>
+            </div>
+          )}
           <Link
             href="/swap"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2"
@@ -124,7 +169,8 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center px-6 -mt-16">
-        {/* NOT CONNECTED - Show login prompt */}
+
+        {/* NOT CONNECTED */}
         {!isConnected && (
           <Card className="w-full max-w-sm animate-scale-in">
             <CardContent className="flex flex-col items-center gap-6 py-12 px-8">
@@ -156,162 +202,159 @@ export default function Home() {
           </Card>
         )}
 
-        {/* CONNECTED - SCENARIO A: Normal Search (IDLE) */}
-        {isConnected && (portalStatus === "IDLE" || portalStatus === "LOADING") && (
+        {/* CONNECTED - IDLE: Show access check */}
+        {isConnected && appState === "IDLE" && (
+          <Card className="w-full max-w-md animate-scale-in">
+            <CardHeader>
+              <CardTitle className="text-xl">Token-Gated Browser</CardTitle>
+              <CardDescription>
+                Access the secure proxy with EWT tokens
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <div className="text-xs text-muted-foreground mb-1">Connected Wallet</div>
+                <div className="text-sm font-mono truncate">{address}</div>
+              </div>
+              <button
+                onClick={handleCheckAccess}
+                className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-semibold text-sm uppercase tracking-wider hover:opacity-90 transition-all duration-300 shadow-sm hover:shadow-lg"
+              >
+                Check Access
+              </button>
+              <div className="text-xs text-muted-foreground text-center">
+                Requires EWT tokens on Arc Testnet
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* CHECKING */}
+        {isConnected && appState === "CHECKING" && (
+          <Card className="w-full max-w-md animate-scale-in">
+            <CardContent className="py-12">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                <div className="text-center">
+                  <div className="font-medium">Checking Access...</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Verifying EWT balance on Arc Testnet
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* DENIED */}
+        {isConnected && appState === "DENIED" && (
+          <Card className="w-full max-w-md animate-scale-in border-red-500/50">
+            <CardHeader>
+              <CardTitle className="text-xl text-red-500 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="m15 9-6 6" />
+                  <path d="m9 9 6 6" />
+                </svg>
+                Access Denied
+              </CardTitle>
+              <CardDescription>{error}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-muted-foreground">
+                You need EWT tokens on Arc Testnet to access the browser.
+              </div>
+              <div className="flex gap-3">
+                <Link
+                  href="/swap"
+                  className="flex-1 h-10 flex items-center justify-center rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:opacity-90"
+                >
+                  Get EWT Tokens
+                </Link>
+                <button
+                  onClick={() => setAppState("IDLE")}
+                  className="h-10 px-4 rounded-xl bg-muted text-foreground font-medium text-sm border border-border hover:bg-muted/80"
+                >
+                  Retry
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* BROWSER MODE */}
+        {isConnected && appState === "BROWSER" && (
           <Card className="w-full max-w-2xl animate-scale-in">
             <CardHeader>
-              <CardTitle className="text-2xl">Portal Search</CardTitle>
+              <CardTitle className="text-2xl flex items-center gap-3">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-green-500"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h20" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+                Token-Gated Browser
+              </CardTitle>
               <CardDescription>
-                Enter a search query, URL, or ENS domain
+                ✓ Access granted • Enter any URL to browse securely
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSearch} className="flex flex-col gap-4">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search, URL, or .eth domain..."
-                    disabled={portalStatus === "LOADING"}
-                    className="w-full h-14 px-6 rounded-xl bg-input border border-border text-foreground placeholder:text-muted-foreground text-base font-mono focus:outline-none focus:ring-2 focus:ring-ring transition-all duration-300 disabled:opacity-50"
-                    autoFocus
-                  />
-                </div>
+              <form onSubmit={handleBrowse} className="flex flex-col gap-4">
+                <input
+                  type="text"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="Enter URL (e.g., wikipedia.org)"
+                  className="w-full h-14 px-6 rounded-xl bg-input border border-border text-foreground placeholder:text-muted-foreground text-base font-mono focus:outline-none focus:ring-2 focus:ring-ring transition-all duration-300"
+                  autoFocus
+                />
                 <div className="flex items-center gap-4">
                   <button
                     type="submit"
-                    disabled={portalStatus === "LOADING" || !query.trim()}
+                    disabled={!url.trim()}
                     className="h-12 px-6 rounded-xl bg-primary text-primary-foreground font-semibold text-sm uppercase tracking-wider hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-sm hover:shadow-lg"
                   >
-                    {portalStatus === "LOADING" ? (
-                      <span className="flex items-center gap-2">
-                        <svg
-                          className="animate-spin h-4 w-4"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        <span>Resolving...</span>
-                      </span>
-                    ) : (
-                      "Search"
-                    )}
+                    Browse
                   </button>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>Press</span>
-                    <kbd className="px-2 py-1 rounded-xl bg-muted text-foreground font-mono text-xs border border-border">
-                      Enter
-                    </kbd>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAppState("IDLE")}
+                    className="h-12 px-4 rounded-xl bg-muted text-foreground font-medium text-sm border border-border hover:bg-muted/80"
+                  >
+                    Exit
+                  </button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* SCENARIO B: The Firewall (BLOCKED) */}
-        {isConnected && portalStatus === "BLOCKED" && (
-          <Card className="w-full max-w-2xl animate-scale-in border-red-500/50">
-            <CardHeader>
-              <CardTitle className="text-2xl text-red-500 flex items-center gap-3">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
-                  <path d="m9 12 2 2 4-4" />
-                </svg>
-                ACCESS DENIED
-              </CardTitle>
-              <CardDescription>
-                Surge protection active for <strong>{query}</strong>
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-6">
-              {/* Congestion Info */}
-              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Current Price:</span>
-                  <span className="text-2xl font-bold text-red-500">
-                    ${price}
-                  </span>
+              {/* Quick Links */}
+              <div className="mt-6 pt-6 border-t border-border">
+                <p className="text-sm text-muted-foreground mb-3">Quick Links</p>
+                <div className="flex flex-wrap gap-2">
+                  {quickLinks.map((link) => (
+                    <button
+                      key={link.url}
+                      onClick={async () => {
+                        const fullUrl = `https://${link.url}`;
+                        const encrypted = await encryptUrl(fullUrl);
+                        window.location.href = `/api/proxy?u=${encrypted}`;
+                      }}
+                      className="px-4 py-2 rounded-xl bg-muted text-foreground text-sm font-medium hover:bg-muted/80 transition-all duration-300 border border-border"
+                    >
+                      {link.name}
+                    </button>
+                  ))}
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  High traffic detected. Pay to bypass the queue.
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button
-                  onClick={deployAgentAndPay}
-                  className="flex-1 h-12 px-6 rounded-xl bg-red-500 text-white font-semibold text-sm uppercase tracking-wider hover:bg-red-600 transition-all duration-300 shadow-sm hover:shadow-lg"
-                >
-                  Deploy Agent & Pay
-                </button>
-                <button
-                  onClick={resetPortal}
-                  className="h-12 px-6 rounded-xl bg-muted text-foreground font-semibold text-sm uppercase tracking-wider hover:bg-muted/80 transition-all duration-300 border border-border"
-                >
-                  Go Back
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* SCENARIO C: Success */}
-        {isConnected && portalStatus === "SUCCESS" && (
-          <Card className="w-full max-w-2xl animate-scale-in border-green-500/50">
-            <CardHeader>
-              <CardTitle className="text-2xl text-green-500 flex items-center gap-3">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                  <path d="m9 11 3 3L22 4" />
-                </svg>
-                ACCESS GRANTED
-              </CardTitle>
-              <CardDescription>
-                Redirecting to secure server...
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30">
-                <p className="text-sm text-muted-foreground">
-                  Destination: <strong className="text-foreground">{targetUrl}</strong>
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -321,7 +364,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="w-full px-6 py-6 text-center animate-fade-in">
         <p className="text-muted-foreground text-xs font-mono">
-          ECONWALL PORTAL v1.0 • {new Date().getFullYear()}
+          ECONWALL • Token-Gated Browser • ENS + CCIP-Read + Arc Testnet
         </p>
       </footer>
     </div>
