@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Web3Provider } from "@/components/web3-provider";
 import "./globals.css";
 
 const geistMono = Geist_Mono({
@@ -26,9 +27,10 @@ export default function RootLayout({
           defaultTheme="dark"
           enableSystem={false}
         >
-          {children}
+          <Web3Provider>{children}</Web3Provider>
         </ThemeProvider>
       </body>
     </html>
   );
 }
+

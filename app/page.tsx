@@ -9,6 +9,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ConnectWallet } from "@/components/connect-wallet";
 
 type PortalStatus = "IDLE" | "LOADING" | "BLOCKED" | "SUCCESS";
 
@@ -88,12 +89,12 @@ export default function Home() {
             <span className="flex items-center gap-1.5">
               <span
                 className={`w-2 h-2 rounded-full ${portalStatus === "BLOCKED"
-                    ? "bg-red-500"
-                    : portalStatus === "LOADING"
-                      ? "bg-yellow-500 animate-pulse"
-                      : portalStatus === "SUCCESS"
-                        ? "bg-green-500"
-                        : "bg-green-500"
+                  ? "bg-red-500"
+                  : portalStatus === "LOADING"
+                    ? "bg-yellow-500 animate-pulse"
+                    : portalStatus === "SUCCESS"
+                      ? "bg-green-500"
+                      : "bg-green-500"
                   }`}
               ></span>
               <span className="text-foreground font-medium">
@@ -107,6 +108,7 @@ export default function Home() {
               </span>
             </span>
           </div>
+          <ConnectWallet />
           <ThemeToggle />
         </div>
       </header>
