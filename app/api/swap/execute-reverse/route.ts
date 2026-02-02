@@ -13,14 +13,14 @@ const token1 = isUSDCToken0 ? CUSTOM_TOKEN_ADDRESS : USDC_ADDRESS;
 
 export async function POST(req: NextRequest) {
     try {
-        const { walletId, amount } = await req.json(); // amount is USDC units (wei string)
+        const { walletId, amount } = await req.json(); // amount is EWT units (wei string)
         const client = getCircleClient();
 
-        // Exact Input (User provides USDC) -> Negative amountSpecified
+        // Exact Input (User provides EWT) -> Negative amountSpecified
         const amountSpecified = (-BigInt(amount)).toString();
 
-        // If input is USDC (token0), then zeroForOne = true.
-        const zeroForOne = isUSDCToken0;
+        // If input is EWT (token1), then zeroForOne = false (swap token1 -> token0)
+        const zeroForOne = !isUSDCToken0; // Reverse of the forward swap
 
         const MIN_SQRT_RATIO = "4295128739";
         const MAX_SQRT_RATIO = "1461446703485210103287273052203988822378723970342";
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
                 [token0, token1, 10000, 60, "0x0000000000000000000000000000000000000000"], // Key (Fee 10000 = 1%)
                 [zeroForOne, amountSpecified, limit], // Params
                 [false, false], // TestSettings
-                "0x" // HookData manually encoded? No, SDK handles bytes string.
+                "0x" // HookData
             ],
             fee: { type: "level", config: { feeLevel: "MEDIUM" } }
         });
