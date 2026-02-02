@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ConnectWallet } from "@/components/connect-wallet";
+import Link from "next/link";
 
 type PortalStatus = "IDLE" | "LOADING" | "BLOCKED" | "SUCCESS";
 
@@ -110,6 +111,12 @@ export default function Home() {
               </span>
             </span>
           </div>
+          <Link
+            href="/swap"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2"
+          >
+            Token Swap
+          </Link>
           <ConnectWallet />
           <ThemeToggle />
         </div>

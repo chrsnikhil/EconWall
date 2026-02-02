@@ -3,17 +3,18 @@ import { mainnet, sepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
 // Define Arc Testnet chain
+// Define Arc Testnet chain
 export const arcTestnet = {
-    id: 1637450, // Arc Testnet chain ID - update if different
+    id: 5042002,
     name: "Arc Testnet",
     nativeCurrency: {
         decimals: 18,
-        name: "ETH",
-        symbol: "ETH",
+        name: "USDC",
+        symbol: "USDC",
     },
     rpcUrls: {
         default: {
-            http: ["https://testnet.rpc.arc.network"], // Update with actual RPC
+            http: ["https://rpc.testnet.arc.network"],
         },
     },
     blockExplorers: {
