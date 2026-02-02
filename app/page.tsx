@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { useAccount } from "wagmi";
 import {
   Card,
   CardHeader,
@@ -14,6 +15,7 @@ import { ConnectWallet } from "@/components/connect-wallet";
 type PortalStatus = "IDLE" | "LOADING" | "BLOCKED" | "SUCCESS";
 
 export default function Home() {
+  const { isConnected } = useAccount();
   const [query, setQuery] = useState("");
   const [portalStatus, setPortalStatus] = useState<PortalStatus>("IDLE");
   const [targetUrl, setTargetUrl] = useState("");
@@ -115,8 +117,40 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center px-6 -mt-16">
-        {/* SCENARIO A: Normal Search (IDLE) */}
-        {(portalStatus === "IDLE" || portalStatus === "LOADING") && (
+        {/* NOT CONNECTED - Show login prompt */}
+        {!isConnected && (
+          <Card className="w-full max-w-sm animate-scale-in">
+            <CardContent className="flex flex-col items-center gap-6 py-12 px-8">
+              <div className="w-14 h-14 rounded-full border-2 border-border flex items-center justify-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-muted-foreground"
+                >
+                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </div>
+              <div className="text-center space-y-2">
+                <h2 className="text-lg font-semibold text-foreground">Portal Locked</h2>
+                <p className="text-sm text-muted-foreground">
+                  Connect your wallet to continue
+                </p>
+              </div>
+              <ConnectWallet />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* CONNECTED - SCENARIO A: Normal Search (IDLE) */}
+        {isConnected && (portalStatus === "IDLE" || portalStatus === "LOADING") && (
           <Card className="w-full max-w-2xl animate-scale-in">
             <CardHeader>
               <CardTitle className="text-2xl">Portal Search</CardTitle>
@@ -184,7 +218,7 @@ export default function Home() {
         )}
 
         {/* SCENARIO B: The Firewall (BLOCKED) */}
-        {portalStatus === "BLOCKED" && (
+        {isConnected && portalStatus === "BLOCKED" && (
           <Card className="w-full max-w-2xl animate-scale-in border-red-500/50">
             <CardHeader>
               <CardTitle className="text-2xl text-red-500 flex items-center gap-3">
@@ -242,7 +276,7 @@ export default function Home() {
         )}
 
         {/* SCENARIO C: Success */}
-        {portalStatus === "SUCCESS" && (
+        {isConnected && portalStatus === "SUCCESS" && (
           <Card className="w-full max-w-2xl animate-scale-in border-green-500/50">
             <CardHeader>
               <CardTitle className="text-2xl text-green-500 flex items-center gap-3">
