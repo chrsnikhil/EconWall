@@ -2,34 +2,33 @@ import { http, createConfig } from "wagmi";
 import { mainnet, sepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
-// Define Arc Testnet chain
-// Define Arc Testnet chain
-export const arcTestnet = {
-    id: 5042002,
-    name: "Arc Testnet",
+// Define Unichain Sepolia (Chain ID 1301)
+export const unichainSepolia = {
+    id: 1301,
+    name: "Unichain Sepolia",
     nativeCurrency: {
         decimals: 18,
-        name: "USDC",
-        symbol: "USDC",
+        name: "Ethereum",
+        symbol: "ETH",
     },
     rpcUrls: {
         default: {
-            http: ["https://rpc.testnet.arc.network"],
+            http: ["https://sepolia.unichain.org"],
         },
     },
     blockExplorers: {
-        default: { name: "ArcScan", url: "https://testnet.arcscan.app" },
+        default: { name: "Uniscan", url: "https://sepolia.uniscan.xyz" },
     },
     testnet: true,
 } as const;
 
 export const config = createConfig({
-    chains: [mainnet, sepolia, arcTestnet],
+    chains: [mainnet, sepolia, unichainSepolia],
     connectors: [injected()],
     transports: {
         [mainnet.id]: http(),
         [sepolia.id]: http(),
-        [arcTestnet.id]: http(),
+        [unichainSepolia.id]: http(),
     },
 });
 

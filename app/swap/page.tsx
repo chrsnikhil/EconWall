@@ -1,28 +1,71 @@
+"use client";
 
-import { SwapCard } from "@/components/swap-card";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { ConnectWallet } from "@/components/connect-wallet";
-import Link from "next/link";
+import { useState } from "react";
+import { useAccount } from "wagmi";
 
 export default function SwapPage() {
-    return (
-        <div className="min-h-screen bg-background flex flex-col">
-            <header className="w-full px-6 py-6 flex items-center justify-between animate-slide-in-down relative z-10">
-                <div className="flex items-center gap-4">
-                    <Link href="/" className="text-xl font-semibold tracking-tight text-foreground hover:opacity-80 transition-opacity">
-                        ECONWALL
-                        <span className="text-muted-foreground text-sm font-normal ml-2">/ SWAP</span>
-                    </Link>
-                </div>
-                <div className="flex items-center gap-4">
-                    <ConnectWallet />
-                    <ThemeToggle />
-                </div>
-            </header>
+    const [loading, setLoading] = useState(false);
+    const [status, setStatus] = useState("Idle");
+    const [txHash, setTxHash] = useState("");
 
-            <main className="flex-1 flex items-center justify-center p-6">
-                <SwapCard />
-            </main>
+    const { address } = useAccount();
+
+    const handleSwap = async () => {
+        try {
+            if (!address) throw new Error("Wallet not connected");
+
+            setLoading(true);
+            setStatus("Swapping & Forwarding to Smart Wallet...");
+
+            const res = await fetch("/api/swap", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    direction: "eth_to_ewt",
+                    amount: "0.001",
+                    sender: address // Send EOA to derive Smart Wallet
+                }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || "Swap Failed");
+            }
+
+            setStatus("Success!");
+            setTxHash(data.txHash);
+        } catch (err: any) {
+            console.error(err);
+            setStatus("Error: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen gap-6 p-8">
+            <h1 className="text-2xl font-bold">Direct EOA Swap</h1>
+            <div className="p-4 border rounded-xl bg-card text-card-foreground shadow w-full max-w-md">
+                <div className="flex justify-between mb-4">
+                    <span>From: ETH</span>
+                    <span>To: EWT</span>
+                </div>
+                <button
+                    onClick={handleSwap}
+                    disabled={loading}
+                    className="w-full h-12 bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50"
+                >
+                    {loading ? "Swapping..." : "Swap 0.001 ETH"}
+                </button>
+
+                {status && <div className="mt-4 text-sm text-center font-mono">{status}</div>}
+                {txHash && (
+                    <div className="mt-2 text-xs text-center break-all text-green-500">
+                        TX: {txHash}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

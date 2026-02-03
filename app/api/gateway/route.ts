@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, keccak256, encodeAbiParameters, parseAbiParameters } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { arcTestnet } from "@/lib/wagmi";
+import { unichainSepolia } from "@/lib/wagmi";
+import { WALLET_FACTORY_ABI } from "@/lib/wallet-abis";
 
 // Configuration
 const EWT_ADDRESS = process.env.NEXT_PUBLIC_CUSTOM_TOKEN_ADDRESS as `0x${string}`;
+const FACTORY_ADDRESS = process.env.NEXT_PUBLIC_WALLET_FACTORY_ADDRESS as `0x${string}`;
 const SERVER_PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`;
 const PROXY_BASE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
@@ -19,9 +21,9 @@ const ERC20_ABI = [
     },
 ] as const;
 
-// Arc client
-const arcClient = createPublicClient({
-    chain: arcTestnet,
+// Unichain Sepolia client
+const chainClient = createPublicClient({
+    chain: unichainSepolia,
     transport: http(),
 });
 
@@ -29,19 +31,41 @@ const arcClient = createPublicClient({
 const signer = privateKeyToAccount(SERVER_PRIVATE_KEY);
 
 /**
- * Check if an address has EWT tokens on Arc Testnet
+ * Get user's smart wallet address from factory
  */
-async function checkArcBalance(address: `0x${string}`): Promise<boolean> {
+async function getSmartWallet(ownerAddress: `0x${string}`): Promise<`0x${string}` | null> {
     try {
-        const balance = await arcClient.readContract({
+        const wallet = await chainClient.readContract({
+            address: FACTORY_ADDRESS,
+            abi: WALLET_FACTORY_ABI,
+            functionName: "getWallet",
+            args: [ownerAddress],
+        });
+
+        const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+        if (wallet === ZERO_ADDRESS) return null;
+
+        return wallet as `0x${string}`;
+    } catch (error) {
+        console.error("Failed to get smart wallet:", error);
+        return null;
+    }
+}
+
+/**
+ * Check if a smart wallet has EWT tokens on Unichain Sepolia
+ */
+async function checkTokenBalance(walletAddress: `0x${string}`): Promise<boolean> {
+    try {
+        const balance = await chainClient.readContract({
             address: EWT_ADDRESS,
             abi: ERC20_ABI,
             functionName: "balanceOf",
-            args: [address],
+            args: [walletAddress],
         });
         return balance > 0n;
     } catch (error) {
-        console.error("Failed to check Arc balance:", error);
+        console.error("Failed to check token balance:", error);
         return false;
     }
 }
@@ -70,16 +94,21 @@ export async function POST(req: NextRequest) {
 
         console.log(`Gateway request from ${sender} for ${name || "unknown"}`);
 
-        // 1. CHECK ARC BALANCE
-        const hasAccess = await checkArcBalance(sender as `0x${string}`);
+        console.log(`Gateway request from ${sender} for ${name || "unknown"}`);
+
+        // 1. DIRECT CHECK: Does the Sender EOA have EWT?
+        // No Smart Wallet lookup needed.
+        const hasAccess = await checkTokenBalance(sender as `0x${string}`);
 
         if (!hasAccess) {
-            console.log(`Access denied for ${sender} - no EWT tokens`);
+            console.log(`Access denied for ${sender} - EOA has no EWT tokens`);
             return NextResponse.json(
-                { error: "Access Denied - No EWT tokens found on Arc Testnet" },
+                { error: "Access Denied - No EWT tokens found in your wallet on Unichain Sepolia" },
                 { status: 403 }
             );
         }
+
+        console.log(`Access granted for EOA ${sender}`);
 
         // 2. CONSTRUCT RESPONSE
         // Return the proxy URL for the requested domain

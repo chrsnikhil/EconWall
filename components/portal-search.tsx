@@ -101,7 +101,7 @@ export function PortalSearch() {
                             <span className="font-medium">Checking Access...</span>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                            Verifying EWT token balance on Arc Testnet
+                            Verifying EWT token balance in your smart wallet
                         </div>
                     </div>
                 )}
@@ -136,7 +136,7 @@ export function PortalSearch() {
 
                 {/* Info */}
                 <div className="text-xs text-muted-foreground text-center pt-2">
-                    Requires EWT tokens on Arc Testnet
+                    Requires EWT tokens in your smart wallet
                 </div>
             </CardContent>
         </Card>

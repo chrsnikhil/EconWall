@@ -1,19 +1,6 @@
 "use client";
 
 import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { useEffect, useState } from "react";
-import { WalletModal } from "./wallet-modal";
-
-interface ArcWallet {
-    id: string;
-    address: string;
-    blockchain: string;
-    state: string;
-    balances: Array<{
-        token: { symbol: string };
-        amount: string;
-    }>;
-}
 
 // Full MetaMask Fox Logo SVG
 const MetaMaskLogo = () => (
@@ -38,41 +25,6 @@ export function ConnectWallet() {
     const { connect, connectors } = useConnect();
     const { disconnect } = useDisconnect();
 
-    const [arcWallet, setArcWallet] = useState<ArcWallet | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [isNew, setIsNew] = useState(false);
-    const [showModal, setShowModal] = useState(false);
-
-    // When MetaMask connects, fetch/create Arc wallet
-    useEffect(() => {
-        if (isConnected && address) {
-            fetchArcWallet(address);
-        } else {
-            setArcWallet(null);
-        }
-    }, [isConnected, address]);
-
-    const fetchArcWallet = async (metamaskAddress: string) => {
-        setLoading(true);
-        try {
-            const res = await fetch("/api/wallet/connect", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ metamaskAddress }),
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                setArcWallet(data.wallet);
-                setIsNew(data.isNew);
-            }
-        } catch (error) {
-            console.error("Failed to fetch Arc wallet:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const formatAddress = (addr: string) => {
         return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
     };
@@ -92,76 +44,38 @@ export function ConnectWallet() {
 
     // Connected state
     return (
-        <>
-            <div className="flex items-center gap-3">
-                {/* Arc Wallet Badge */}
-                {loading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        <span>Linking...</span>
-                    </div>
-                ) : arcWallet ? (
-                    <button
-                        onClick={() => setShowModal(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted border border-border cursor-pointer hover:bg-muted/80 transition-colors"
-                        title="View Wallet Details"
-                    >
-                        <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                            <span className="text-xs text-muted-foreground">Arc</span>
-                            <span className="text-sm font-mono text-foreground">
-                                {formatAddress(arcWallet.address)}
-                            </span>
-                        </div>
-                        {isNew && (
-                            <span className="text-xs bg-green-500/20 text-green-500 px-1.5 py-0.5 rounded">NEW</span>
-                        )}
-                    </button>
-                ) : null}
-
-                {/* MetaMask Address + Disconnect */}
-                <div className="flex items-center gap-2">
-                    <div
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted border border-border cursor-pointer hover:bg-muted/80 transition-colors"
-                        onClick={() => navigator.clipboard.writeText(address!)}
-                        title="Click to copy MetaMask address"
-                    >
-                        <MetaMaskLogo />
-                        <span className="text-sm font-mono text-foreground">
-                            {formatAddress(address!)}
-                        </span>
-                    </div>
-                    <button
-                        onClick={() => disconnect()}
-                        className="h-9 w-9 rounded-xl bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
-                        title="Disconnect"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        >
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                            <polyline points="16 17 21 12 16 7" />
-                            <line x1="21" x2="9" y1="12" y2="12" />
-                        </svg>
-                    </button>
-                </div>
+        <div className="flex items-center gap-2">
+            <div
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted border border-border cursor-pointer hover:bg-muted/80 transition-colors"
+                onClick={() => navigator.clipboard.writeText(address!)}
+                title="Click to copy address"
+            >
+                <MetaMaskLogo />
+                <span className="text-sm font-mono text-foreground">
+                    {formatAddress(address!)}
+                </span>
             </div>
-
-            {/* Wallet Modal */}
-            <WalletModal isOpen={showModal} onClose={() => setShowModal(false)} />
-        </>
+            <button
+                onClick={() => disconnect()}
+                className="h-9 w-9 rounded-xl bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                title="Disconnect"
+            >
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                >
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" x2="9" y1="12" y2="12" />
+                </svg>
+            </button>
+        </div>
     );
 }
-
-

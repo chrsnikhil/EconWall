@@ -156,6 +156,7 @@ export default function Home() {
               </span>
             </div>
           )}
+
           <Link
             href="/swap"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2"
@@ -265,6 +266,7 @@ export default function Home() {
                 You need EWT tokens on Arc Testnet to access the browser.
               </div>
               <div className="flex gap-3">
+
                 <Link
                   href="/swap"
                   className="flex-1 h-10 flex items-center justify-center rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:opacity-90"
@@ -367,6 +369,6 @@ export default function Home() {
           ECONWALL • Token-Gated Browser • ENS + CCIP-Read + Arc Testnet
         </p>
       </footer>
-    </div>
+    </div >
   );
 }
