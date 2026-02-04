@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect, useCallback } from "react";
 import { useAccount } from "wagmi";
 import {
   Card,
@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ConnectWallet } from "@/components/connect-wallet";
+import { ServerWalletView } from "@/components/server-wallet-view";
+import { ServerSwapCard } from "@/components/server-swap-card";
 import Link from "next/link";
 import { resolveEnsWithCcip } from "@/lib/ccip-read";
 import { Hex } from "viem";
@@ -25,6 +27,9 @@ export default function Home() {
   const [appState, setAppState] = useState<AppState>("IDLE");
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [serverWalletAddress, setServerWalletAddress] = useState<string | null>(null);
+  const [privyUserId, setPrivyUserId] = useState<string | null>(null);
+  const [isServerWalletLoading, setIsServerWalletLoading] = useState(false);
 
   // AES encryption key (must match server)
   const AES_KEY = 'econwall-secure-key-for-urls!!'.padEnd(32, '0').slice(0, 32);
@@ -67,6 +72,41 @@ export default function Home() {
     // Return: iv (hex) + ciphertext (hex)
     return ab2hex(iv.buffer) + ab2hex(encrypted);
   };
+
+  const fetchServerWalletAddress = useCallback(async (userId: string) => {
+    setIsServerWalletLoading(true);
+    try {
+      const res = await fetch("/api/wallet/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        console.log("✅ [Page] API Success. Wallet:", data.walletAddress);
+        setServerWalletAddress(data.walletAddress);
+        if (data.privyUserId) setPrivyUserId(data.privyUserId);
+      } else {
+        console.error("❌ [Page] API Error:", data.error);
+        setServerWalletAddress(null);
+      }
+    } catch (err) {
+      console.error("Wallet Init Failed:", err);
+      setServerWalletAddress(null);
+    } finally {
+      setIsServerWalletLoading(false);
+    }
+  }, []);
+
+  // Auto-init Server Wallet on Login
+  useEffect(() => {
+    if (isConnected && address) {
+      console.log("Initializing Server Wallet for", address);
+      fetchServerWalletAddress(address);
+    } else {
+      setServerWalletAddress(null);
+    }
+  }, [isConnected, address, fetchServerWalletAddress]);
 
   // Check EWT token access
   const handleCheckAccess = async () => {
@@ -131,6 +171,14 @@ export default function Home() {
     { name: "DuckDuckGo", url: "duckduckgo.com" },
     { name: "Hacker News", url: "news.ycombinator.com" },
   ];
+
+  // Hydration Fix
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) return null; // Avoid server/client mismatch
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -360,6 +408,13 @@ export default function Home() {
               </div>
             </CardContent>
           </Card>
+        )}
+        {/* Server Wallet Dashboard */}
+        {isConnected && serverWalletAddress && (
+          <div className="mt-8 flex flex-col items-center gap-6 w-full max-w-md">
+            <ServerWalletView walletAddress={serverWalletAddress} privyUserId={privyUserId} />
+            <ServerSwapCard userAddress={address!} />
+          </div>
         )}
       </main>
 

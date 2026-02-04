@@ -15,7 +15,7 @@ export default function SwapPage() {
             if (!address) throw new Error("Wallet not connected");
 
             setLoading(true);
-            setStatus("Swapping & Forwarding to Smart Wallet...");
+            setStatus("Swapping & Forwarding to your Wallet...");
 
             const res = await fetch("/api/swap", {
                 method: "POST",
@@ -23,7 +23,7 @@ export default function SwapPage() {
                 body: JSON.stringify({
                     direction: "eth_to_ewt",
                     amount: "0.001",
-                    sender: address // Send EOA to derive Smart Wallet
+                    sender: address // Send EOA for direct forwarding
                 }),
             });
 

@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, keccak256, encodeAbiParameters, parseAbiParameters } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { unichainSepolia } from "@/lib/wagmi";
-import { WALLET_FACTORY_ABI } from "@/lib/wallet-abis";
-
 // Configuration
 const EWT_ADDRESS = process.env.NEXT_PUBLIC_CUSTOM_TOKEN_ADDRESS as `0x${string}`;
-const FACTORY_ADDRESS = process.env.NEXT_PUBLIC_WALLET_FACTORY_ADDRESS as `0x${string}`;
 const SERVER_PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`;
 const PROXY_BASE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
@@ -31,26 +28,8 @@ const chainClient = createPublicClient({
 const signer = privateKeyToAccount(SERVER_PRIVATE_KEY);
 
 /**
- * Get user's smart wallet address from factory
+ * Check if the User EOA has EWT tokens on Unichain Sepolia
  */
-async function getSmartWallet(ownerAddress: `0x${string}`): Promise<`0x${string}` | null> {
-    try {
-        const wallet = await chainClient.readContract({
-            address: FACTORY_ADDRESS,
-            abi: WALLET_FACTORY_ABI,
-            functionName: "getWallet",
-            args: [ownerAddress],
-        });
-
-        const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-        if (wallet === ZERO_ADDRESS) return null;
-
-        return wallet as `0x${string}`;
-    } catch (error) {
-        console.error("Failed to get smart wallet:", error);
-        return null;
-    }
-}
 
 /**
  * Check if a smart wallet has EWT tokens on Unichain Sepolia
@@ -96,19 +75,51 @@ export async function POST(req: NextRequest) {
 
         console.log(`Gateway request from ${sender} for ${name || "unknown"}`);
 
-        // 1. DIRECT CHECK: Does the Sender EOA have EWT?
-        // No Smart Wallet lookup needed.
-        const hasAccess = await checkTokenBalance(sender as `0x${string}`);
+        // 1. Resolve Privy Wallet (Server-Side Wallet)
+        let privyWalletAddress: `0x${string}` | null = null;
+        try {
+            // Import/Get User via Privy (using helper logic inline or imported)
+            // Reusing the Privy helper we made would be cleaner if exported, but let's keep it robust here or import.
+            // Actually, let's use the lib/privy helper! 
+            // I need to import { getOrCreatePrivyWallet } from "@/lib/privy";
+            // Wait, I need to add that import at top.
+        } catch (e) {
+            console.log("Privy wallet lookup failed (ignoring for now):", e);
+        }
+
+        // However, I can't edit imports easily with this replace block if I don't target the top.
+        // Let's do a MultiReplace.
+
+        // Actually, let's just do the check here.
+        // I'll assume the user might have EWT on EOA OR Privy Wallet.
+
+        // 1. Check EOA
+        let hasAccess = await checkTokenBalance(sender as `0x${string}`);
+
+        // 2. Check Privy Wallet (if EOA failed)
+        if (!hasAccess) {
+            console.log(`EOA has no tokens. Checking Privy Server Wallet for ${sender}...`);
+            try {
+                const { getOrCreatePrivyWallet } = await import("@/lib/privy");
+                const walletAddr = await getOrCreatePrivyWallet(sender);
+                if (walletAddr) {
+                    console.log(`Found Privy Wallet: ${walletAddr}`);
+                    hasAccess = await checkTokenBalance(walletAddr as `0x${string}`);
+                }
+            } catch (err: any) {
+                console.warn(`Privy check failed: ${err.message}`);
+            }
+        }
 
         if (!hasAccess) {
-            console.log(`Access denied for ${sender} - EOA has no EWT tokens`);
+            console.log(`Access denied for ${sender}`);
             return NextResponse.json(
-                { error: "Access Denied - No EWT tokens found in your wallet on Unichain Sepolia" },
+                { error: "Access Denied - No EWT tokens found in your EOA or Server Wallet" },
                 { status: 403 }
             );
         }
 
-        console.log(`Access granted for EOA ${sender}`);
+        console.log(`Access granted for ${sender}`);
 
         // 2. CONSTRUCT RESPONSE
         // Return the proxy URL for the requested domain

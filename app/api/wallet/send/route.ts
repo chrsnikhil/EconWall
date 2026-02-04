@@ -1,127 +1,71 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, createWalletClient, http, parseEther, parseUnits, encodeFunctionData } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { unichainSepolia } from "@/lib/wagmi";
-import { WALLET_FACTORY_ABI, SMART_WALLET_ABI, ERC20_ABI } from "@/lib/wallet-abis";
+import { privy } from "@/lib/privy";
+import { parseEther, toHex } from "viem";
 
-const FACTORY_ADDRESS = process.env.NEXT_PUBLIC_WALLET_FACTORY_ADDRESS as `0x${string}`;
-const SERVER_PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`;
-
-const publicClient = createPublicClient({
-    chain: unichainSepolia,
-    transport: http(),
-});
-
-const account = privateKeyToAccount(SERVER_PRIVATE_KEY);
-const walletClient = createWalletClient({
-    account,
-    chain: unichainSepolia,
-    transport: http(),
-});
-
-/**
- * POST - Send ETH or tokens from smart wallet
- */
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
     try {
-        const body = await request.json();
-        const { ownerAddress, to, amount, tokenAddress } = body;
+        const { privyUserId, recipient, amount } = await req.json();
 
-        if (!ownerAddress || !to || !amount) {
-            return NextResponse.json({
-                error: "ownerAddress, to, and amount are required"
-            }, { status: 400 });
+        if (!privyUserId || !recipient || !amount) {
+            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
-        // Get the smart wallet address
-        const smartWallet = await publicClient.readContract({
-            address: FACTORY_ADDRESS,
-            abi: WALLET_FACTORY_ABI,
-            functionName: "getWallet",
-            args: [ownerAddress as `0x${string}`],
+        console.log(`[Wallet Send] Request from ${privyUserId} to ${recipient} (${amount} ETH)`);
+
+        // 1. Get User Wallet
+        // Use getWallets to ensure we find Server Wallets (Verified Working in Init)
+        let wallet;
+        try {
+            console.log(`[Wallet Send] Fetching wallets for ${privyUserId}...`);
+            const result = await privy.walletApi.getWallets({ userId: privyUserId });
+            const wallets = result.data || [];
+            console.log(`[Wallet Send] Found ${wallets.length} wallets`);
+
+            // Find the ethereum wallet
+            wallet = wallets.find((w: any) => w.chainType === 'ethereum');
+        } catch (e: any) {
+            console.error("[Wallet Send] Failed to fetch wallets:", e.message);
+        }
+
+        if (!wallet) {
+            console.error(`[Wallet Send] No Ethereum wallet found for user ${privyUserId}`);
+            return NextResponse.json({ error: "User has no wallet" }, { status: 404 });
+        }
+
+        // 2. Prepare Transaction
+        const weiAmount = parseEther(amount.toString());
+        const hexValue = toHex(weiAmount);
+        const chainId = 1301; // Unichain Sepolia
+
+        console.log(`[Wallet Send] Sending ${amount} ETH from ${wallet.address} to ${recipient}...`);
+
+        // 3. Send Transaction
+        // We rely on the authorizationPrivateKey configured in lib/privy.ts
+        const txReceipt = await privy.walletApi.ethereum.sendTransaction({
+            walletId: wallet.id,
+            caip2: `eip155:${chainId}`,
+            transaction: {
+                to: recipient,
+                value: hexValue,
+                chainId: chainId
+            }
         });
 
-        const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-        if (smartWallet === ZERO_ADDRESS) {
-            return NextResponse.json({ error: "Smart wallet not found" }, { status: 404 });
-        }
-
-        let hash: `0x${string}`;
-
-        if (!tokenAddress || tokenAddress === ZERO_ADDRESS) {
-            // Send ETH
-            console.log(`Sending ${amount} ETH from ${smartWallet} to ${to}`);
-
-            const value = parseEther(amount.toString());
-
-            // Execute via factory (admin can execute on behalf of wallets)
-            hash = await walletClient.writeContract({
-                address: FACTORY_ADDRESS,
-                abi: WALLET_FACTORY_ABI,
-                functionName: "executeFor",
-                args: [
-                    ownerAddress as `0x${string}`,
-                    to as `0x${string}`,
-                    value,
-                    "0x" as `0x${string}` // Empty data for ETH transfer
-                ],
-            });
-        } else {
-            // Send ERC20 token
-            console.log(`Sending ${amount} tokens (${tokenAddress}) from ${smartWallet} to ${to}`);
-
-            // Get token decimals
-            const decimals = await publicClient.readContract({
-                address: tokenAddress as `0x${string}`,
-                abi: ERC20_ABI,
-                functionName: "decimals",
-            });
-
-            const value = parseUnits(amount.toString(), decimals);
-
-            // Encode ERC20 transfer call
-            const transferData = encodeFunctionData({
-                abi: [{
-                    name: "transfer",
-                    type: "function",
-                    inputs: [
-                        { name: "to", type: "address" },
-                        { name: "amount", type: "uint256" }
-                    ],
-                    outputs: [{ name: "", type: "bool" }]
-                }],
-                functionName: "transfer",
-                args: [to as `0x${string}`, value]
-            });
-
-            // Execute via factory
-            hash = await walletClient.writeContract({
-                address: FACTORY_ADDRESS,
-                abi: WALLET_FACTORY_ABI,
-                functionName: "executeFor",
-                args: [
-                    ownerAddress as `0x${string}`,
-                    tokenAddress as `0x${string}`,
-                    0n,
-                    transferData
-                ],
-            });
-        }
-
-        console.log(`Transaction sent: ${hash}`);
-
-        // Wait for confirmation
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-        console.log(`Send complete in block ${receipt.blockNumber}`);
+        console.log(`[Wallet Send] Success! Hash: ${txReceipt.hash}`);
 
         return NextResponse.json({
             success: true,
-            txHash: hash,
-            blockNumber: receipt.blockNumber.toString(),
+            txHash: txReceipt.hash,
+            from: wallet.address,
+            to: recipient,
+            amount: amount
         });
+
     } catch (error: any) {
-        console.error("Error sending:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("Wallet Send Error:", error);
+        return NextResponse.json({
+            error: error.message || "Transaction failed",
+            details: error.response?.data || error.stack
+        }, { status: 500 });
     }
 }
