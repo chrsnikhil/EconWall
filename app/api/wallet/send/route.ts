@@ -13,16 +13,19 @@ export async function POST(req: NextRequest) {
         console.log(`[Wallet Send] Request from ${privyUserId} to ${recipient} (${amount} ETH)`);
 
         // 1. Get User Wallet
-        // Use getWallets to ensure we find Server Wallets (Verified Working in Init)
         let wallet;
         try {
             console.log(`[Wallet Send] Fetching wallets for ${privyUserId}...`);
-            const result = await privy.walletApi.getWallets({ userId: privyUserId });
+            // FIXED: Use owner filter instead of userId
+            const result = await privy.walletApi.getWallets({
+                owner: privyUserId,
+                chainType: 'ethereum'
+            });
             const wallets = result.data || [];
-            console.log(`[Wallet Send] Found ${wallets.length} wallets`);
+            console.log(`[Wallet Send] Found ${wallets.length} wallets for this user`);
 
             // Find the ethereum wallet
-            wallet = wallets.find((w: any) => w.chainType === 'ethereum');
+            wallet = wallets[0];
         } catch (e: any) {
             console.error("[Wallet Send] Failed to fetch wallets:", e.message);
         }
@@ -40,7 +43,6 @@ export async function POST(req: NextRequest) {
         console.log(`[Wallet Send] Sending ${amount} ETH from ${wallet.address} to ${recipient}...`);
 
         // 3. Send Transaction
-        // We rely on the authorizationPrivateKey configured in lib/privy.ts
         const txReceipt = await privy.walletApi.ethereum.sendTransaction({
             walletId: wallet.id,
             caip2: `eip155:${chainId}`,

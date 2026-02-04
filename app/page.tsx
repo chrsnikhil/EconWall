@@ -10,12 +10,13 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/connect-wallet";
-import { ServerWalletView } from "@/components/server-wallet-view";
-import { ServerSwapCard } from "@/components/server-swap-card";
+import { ServerWalletSidebar } from "@/components/server-wallet-sidebar"; // New Sidebar
 import Link from "next/link";
 import { resolveEnsWithCcip } from "@/lib/ccip-read";
 import { Hex } from "viem";
+import { Wallet } from "lucide-react"; // Import icon
 
 type AppState = "IDLE" | "CHECKING" | "DENIED" | "BROWSER";
 
@@ -30,6 +31,7 @@ export default function Home() {
   const [serverWalletAddress, setServerWalletAddress] = useState<string | null>(null);
   const [privyUserId, setPrivyUserId] = useState<string | null>(null);
   const [isServerWalletLoading, setIsServerWalletLoading] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Sidebar state
 
   // AES encryption key (must match server)
   const AES_KEY = 'econwall-secure-key-for-urls!!'.padEnd(32, '0').slice(0, 32);
@@ -211,6 +213,19 @@ export default function Home() {
           >
             Token Swap
           </Link>
+
+          {isConnected && serverWalletAddress && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSidebarOpen(true)}
+              className="gap-2 border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 text-purple-400 group shadow-lg shadow-purple-500/10 transition-all hover:shadow-purple-500/20"
+            >
+              <Wallet className="w-4 h-4 transition-transform group-hover:scale-110" />
+              Wallet
+            </Button>
+          )}
+
           <ConnectWallet />
           <ThemeToggle />
         </div>
@@ -409,14 +424,17 @@ export default function Home() {
             </CardContent>
           </Card>
         )}
-        {/* Server Wallet Dashboard */}
-        {isConnected && serverWalletAddress && (
-          <div className="mt-8 flex flex-col items-center gap-6 w-full max-w-md">
-            <ServerWalletView walletAddress={serverWalletAddress} privyUserId={privyUserId} />
-            <ServerSwapCard userAddress={address!} />
-          </div>
-        )}
       </main>
+
+      {/* Sidebar Component */}
+      {isConnected && serverWalletAddress && (
+        <ServerWalletSidebar
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          walletAddress={serverWalletAddress}
+          privyUserId={privyUserId}
+        />
+      )}
 
       {/* Footer */}
       <footer className="w-full px-6 py-6 text-center animate-fade-in">
