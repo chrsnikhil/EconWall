@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, FormEvent, useEffect, useCallback } from "react";
-import { useAccount } from "wagmi";
+import { useState, FormEvent, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import {
   Card,
   CardHeader,
@@ -12,11 +12,11 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/connect-wallet";
-import { ServerWalletSidebar } from "@/components/server-wallet-sidebar"; // New Sidebar
+import { ServerWalletSidebar } from "@/components/server-wallet-sidebar";
 import Link from "next/link";
 import { resolveEnsWithCcip } from "@/lib/ccip-read";
 import { Hex } from "viem";
-import { Wallet } from "lucide-react"; // Import icon
+import { Wallet } from "lucide-react";
 
 type AppState = "IDLE" | "CHECKING" | "DENIED" | "BROWSER";
 
@@ -24,14 +24,20 @@ type AppState = "IDLE" | "CHECKING" | "DENIED" | "BROWSER";
 const RESOLVER_ADDRESS = "0xb4e2ed5879b924e971a3A61FAF7Cb0d2d88bB982";
 
 export default function Home() {
-  const { address, isConnected } = useAccount();
+  // Use Privy for authentication and embedded wallet
+  const { ready, authenticated, user } = usePrivy();
+
   const [appState, setAppState] = useState<AppState>("IDLE");
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [serverWalletAddress, setServerWalletAddress] = useState<string | null>(null);
-  const [privyUserId, setPrivyUserId] = useState<string | null>(null);
-  const [isServerWalletLoading, setIsServerWalletLoading] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Sidebar state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Get embedded wallet from Privy user
+  const embeddedWallet = user?.linkedAccounts?.find(
+    (account: any) => account.type === 'wallet' && account.walletClientType === 'privy'
+  );
+  const serverWalletAddress = embeddedWallet?.address || null;
+  const privyUserId = user?.id || null;
 
   // AES encryption key (must match server)
   const AES_KEY = 'econwall-secure-key-for-urls!!'.padEnd(32, '0').slice(0, 32);
@@ -75,44 +81,17 @@ export default function Home() {
     return ab2hex(iv.buffer) + ab2hex(encrypted);
   };
 
-  const fetchServerWalletAddress = useCallback(async (userId: string) => {
-    setIsServerWalletLoading(true);
-    try {
-      const res = await fetch("/api/wallet/init", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        console.log("✅ [Page] API Success. Wallet:", data.walletAddress);
-        setServerWalletAddress(data.walletAddress);
-        if (data.privyUserId) setPrivyUserId(data.privyUserId);
-      } else {
-        console.error("❌ [Page] API Error:", data.error);
-        setServerWalletAddress(null);
-      }
-    } catch (err) {
-      console.error("Wallet Init Failed:", err);
-      setServerWalletAddress(null);
-    } finally {
-      setIsServerWalletLoading(false);
-    }
-  }, []);
-
-  // Auto-init Server Wallet on Login
+  // Log embedded wallet status
   useEffect(() => {
-    if (isConnected && address) {
-      console.log("Initializing Server Wallet for", address);
-      fetchServerWalletAddress(address);
-    } else {
-      setServerWalletAddress(null);
+    if (authenticated && embeddedWallet) {
+      console.log("✅ [Page] Embedded Wallet Ready:", embeddedWallet.address);
+      console.log("✅ [Page] Delegated:", embeddedWallet.delegated);
     }
-  }, [isConnected, address, fetchServerWalletAddress]);
+  }, [authenticated, embeddedWallet]);
 
   // Check EWT token access
   const handleCheckAccess = async () => {
-    if (!address) return;
+    if (!serverWalletAddress) return;
 
     setAppState("CHECKING");
     setError(null);
@@ -120,7 +99,7 @@ export default function Home() {
     // 1. Try "The Real Way" (CCIP-Read) first
     try {
       console.log("Attempting On-Chain CCIP-Read...");
-      await resolveEnsWithCcip(RESOLVER_ADDRESS as Hex, "econwall.eth", address as Hex);
+      await resolveEnsWithCcip(RESOLVER_ADDRESS as Hex, "econwall.eth", serverWalletAddress as Hex);
       setAppState("BROWSER");
       return;
     } catch (err) {
@@ -132,7 +111,7 @@ export default function Home() {
       const res = await fetch("/api/gateway", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sender: address }),
+        body: JSON.stringify({ sender: serverWalletAddress }),
       });
 
       const data = await res.json();
@@ -201,7 +180,7 @@ export default function Home() {
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-green-500"></span>
                 <span className="text-foreground font-medium font-mono">
-                  {address?.slice(0, 6)}...
+                  {serverWalletAddress?.slice(0, 6)}...
                 </span>
               </span>
             </div>
@@ -214,7 +193,7 @@ export default function Home() {
             Token Swap
           </Link>
 
-          {isConnected && serverWalletAddress && (
+          {authenticated && (
             <Button
               variant="outline"
               size="sm"
@@ -235,7 +214,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center justify-center px-6 -mt-16">
 
         {/* NOT CONNECTED */}
-        {!isConnected && (
+        {!authenticated && (
           <Card className="w-full max-w-sm animate-scale-in">
             <CardContent className="flex flex-col items-center gap-6 py-12 px-8">
               <div className="w-14 h-14 rounded-full border-2 border-border flex items-center justify-center">
@@ -267,7 +246,7 @@ export default function Home() {
         )}
 
         {/* CONNECTED - IDLE: Show access check */}
-        {isConnected && appState === "IDLE" && (
+        {authenticated && appState === "IDLE" && (
           <Card className="w-full max-w-md animate-scale-in">
             <CardHeader>
               <CardTitle className="text-xl">Token-Gated Browser</CardTitle>
@@ -277,8 +256,8 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="p-3 bg-muted rounded-lg">
-                <div className="text-xs text-muted-foreground mb-1">Connected Wallet</div>
-                <div className="text-sm font-mono truncate">{address}</div>
+                <div className="text-xs text-muted-foreground mb-1">Embedded Wallet</div>
+                <div className="text-sm font-mono truncate">{serverWalletAddress || 'Creating...'}</div>
               </div>
               <button
                 onClick={handleCheckAccess}
@@ -294,7 +273,7 @@ export default function Home() {
         )}
 
         {/* CHECKING */}
-        {isConnected && appState === "CHECKING" && (
+        {authenticated && appState === "CHECKING" && (
           <Card className="w-full max-w-md animate-scale-in">
             <CardContent className="py-12">
               <div className="flex flex-col items-center gap-4">
@@ -311,7 +290,7 @@ export default function Home() {
         )}
 
         {/* DENIED */}
-        {isConnected && appState === "DENIED" && (
+        {authenticated && appState === "DENIED" && (
           <Card className="w-full max-w-md animate-scale-in border-red-500/50">
             <CardHeader>
               <CardTitle className="text-xl text-red-500 flex items-center gap-2">
@@ -348,7 +327,7 @@ export default function Home() {
         )}
 
         {/* BROWSER MODE */}
-        {isConnected && appState === "BROWSER" && (
+        {authenticated && appState === "BROWSER" && (
           <Card className="w-full max-w-2xl animate-scale-in">
             <CardHeader>
               <CardTitle className="text-2xl flex items-center gap-3">
@@ -427,11 +406,11 @@ export default function Home() {
       </main>
 
       {/* Sidebar Component */}
-      {isConnected && serverWalletAddress && (
+      {authenticated && (
         <ServerWalletSidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
-          walletAddress={serverWalletAddress}
+          walletAddress={serverWalletAddress || ''}
           privyUserId={privyUserId}
         />
       )}

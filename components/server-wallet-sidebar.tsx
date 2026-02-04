@@ -19,7 +19,10 @@ import {
 import { useBalance, useReadContract } from "wagmi";
 import { formatEther, erc20Abi } from "viem";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { ServerSwapCard } from "@/components/server-swap-card";
+import WalletManager from "@/components/wallet-manager";
 
 interface ServerWalletSidebarProps {
     isOpen: boolean;
@@ -194,6 +197,10 @@ export function ServerWalletSidebar({
 
                 {/* Account Section */}
                 <div className="px-6 py-6 border-b border-white/5 space-y-4 bg-white/[0.02]">
+
+                    {/* Delegation Manager - IMPORTANT */}
+                    <WalletManager />
+
                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between group">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">

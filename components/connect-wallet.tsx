@@ -1,6 +1,6 @@
 "use client";
 
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { usePrivy } from "@privy-io/react-auth";
 
 // Full MetaMask Fox Logo SVG
 const MetaMaskLogo = () => (
@@ -21,19 +21,30 @@ const MetaMaskLogo = () => (
 );
 
 export function ConnectWallet() {
-    const { address, isConnected } = useAccount();
-    const { connect, connectors } = useConnect();
-    const { disconnect } = useDisconnect();
+    const { ready, authenticated, user, login, logout } = usePrivy();
+
+    // Get embedded wallet address from Privy user
+    const embeddedWallet = user?.linkedAccounts?.find(
+        (account: any) => account.type === 'wallet' && account.walletClientType === 'privy'
+    );
 
     const formatAddress = (addr: string) => {
         return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
     };
 
-    // Not connected state
-    if (!isConnected) {
+    if (!ready) {
+        return (
+            <div className="h-9 px-4 rounded-xl bg-muted text-muted-foreground text-sm font-medium flex items-center">
+                Loading...
+            </div>
+        );
+    }
+
+    // Not authenticated - show login button
+    if (!authenticated) {
         return (
             <button
-                onClick={() => connect({ connector: connectors[0] })}
+                onClick={login}
                 className="h-9 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 flex items-center gap-2"
             >
                 <MetaMaskLogo />
@@ -42,21 +53,25 @@ export function ConnectWallet() {
         );
     }
 
-    // Connected state
+    // Authenticated - show wallet info
+    const displayAddress = embeddedWallet?.address || user?.wallet?.address || 'Loading...';
+
     return (
         <div className="flex items-center gap-2">
             <div
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted border border-border cursor-pointer hover:bg-muted/80 transition-colors"
-                onClick={() => navigator.clipboard.writeText(address!)}
+                onClick={() => embeddedWallet?.address && navigator.clipboard.writeText(embeddedWallet.address)}
                 title="Click to copy address"
             >
                 <MetaMaskLogo />
                 <span className="text-sm font-mono text-foreground">
-                    {formatAddress(address!)}
+                    {typeof displayAddress === 'string' && displayAddress !== 'Loading...'
+                        ? formatAddress(displayAddress)
+                        : displayAddress}
                 </span>
             </div>
             <button
-                onClick={() => disconnect()}
+                onClick={logout}
                 className="h-9 w-9 rounded-xl bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
                 title="Disconnect"
             >

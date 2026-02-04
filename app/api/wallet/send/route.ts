@@ -12,39 +12,46 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Wallet Send] Request from ${privyUserId} to ${recipient} (${amount} ETH)`);
 
-        // 1. Get User Wallet
-        let wallet;
-        try {
-            console.log(`[Wallet Send] Fetching wallets for ${privyUserId}...`);
-            // FIXED: Use owner filter instead of userId
-            const result = await privy.walletApi.getWallets({
-                owner: privyUserId,
-                chainType: 'ethereum'
-            });
-            const wallets = result.data || [];
-            console.log(`[Wallet Send] Found ${wallets.length} wallets for this user`);
+        // 1. Get User
+        const user = await privy.getUser(privyUserId);
 
-            // Find the ethereum wallet
-            wallet = wallets[0];
-        } catch (e: any) {
-            console.error("[Wallet Send] Failed to fetch wallets:", e.message);
+        // 2. Find their embedded wallet (for TEE, we look for privy walletClientType)
+        const embeddedWallet = user.linkedAccounts?.find(
+            (account: any) =>
+                account.type === 'wallet' &&
+                account.walletClientType === 'privy'
+        ) as any;
+
+        if (!embeddedWallet) {
+            console.error(`[Wallet Send] User ${privyUserId} has no embedded wallet.`);
+            return NextResponse.json(
+                { error: 'User has no embedded wallet. Please create one in the sidebar.' },
+                { status: 404 }
+            );
         }
 
-        if (!wallet) {
-            console.error(`[Wallet Send] No Ethereum wallet found for user ${privyUserId}`);
-            return NextResponse.json({ error: "User has no wallet" }, { status: 404 });
+        console.log(`[Wallet Send] Found embedded wallet: ${embeddedWallet.address}`);
+
+        // 3. For TEE wallets, we use the wallet ID to send transactions
+        // The authorization private key in lib/privy.ts allows signing
+        const walletId = embeddedWallet.id;
+
+        if (!walletId) {
+            console.error(`[Wallet Send] Wallet has no ID`);
+            return NextResponse.json(
+                { error: 'Wallet ID not found. Please ensure the wallet has signers enabled.' },
+                { status: 400 }
+            );
         }
 
-        // 2. Prepare Transaction
+        // 3. Prepare Transaction
         const weiAmount = parseEther(amount.toString());
         const hexValue = toHex(weiAmount);
         const chainId = 1301; // Unichain Sepolia
 
-        console.log(`[Wallet Send] Sending ${amount} ETH from ${wallet.address} to ${recipient}...`);
-
-        // 3. Send Transaction
+        // 4. Send Transaction using the wallet ID (server has auth key)
         const txReceipt = await privy.walletApi.ethereum.sendTransaction({
-            walletId: wallet.id,
+            walletId: walletId,
             caip2: `eip155:${chainId}`,
             transaction: {
                 to: recipient,
@@ -58,7 +65,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             success: true,
             txHash: txReceipt.hash,
-            from: wallet.address,
+            from: embeddedWallet.address,
             to: recipient,
             amount: amount
         });

@@ -41,21 +41,28 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Missing privyUserId for secure wallet lookup" }, { status: 400 });
         }
 
-        // 1. Resolve User Wallet
-        // FIXED: Use owner filter instead of userId
-        const result = await privy.walletApi.getWallets({
-            owner: privyUserId,
-            chainType: 'ethereum'
-        });
-        const wallet = result.data?.[0];
+        // 1. Resolve User & Delegated Wallet
+        const user = await privy.getUser(privyUserId);
+
+        // Find their delegated embedded wallet
+        const wallet = user.linkedAccounts?.find(
+            (account: any) =>
+                account.type === 'wallet' &&
+                account.walletClientType === 'privy' &&
+                account.delegated === true
+        );
 
         if (!wallet) {
-            throw new Error(`No server-managed wallet found for Privy user ${privyUserId}`);
+            console.error(`[Swap API] User ${privyUserId} has not delegated their wallet.`);
+            return NextResponse.json(
+                { error: 'User has not delegated their wallet. Please enable Server Actions in the sidebar.' },
+                { status: 403 }
+            );
         }
 
-        console.log(`[Swap API] Operating on wallet: ${wallet.address}`);
+        console.log(`[Swap API] Operating on authorized delegated wallet: ${wallet.address}`);
 
-        // 2. Setup V4 Swap
+        // 2. Setup V4 Swap (ETH -> EWT)
         if (direction !== "eth_to_ewt") {
             return NextResponse.json({ error: "Currently only ETH -> EWT swaps are supported via this route" }, { status: 400 });
         }
@@ -105,7 +112,7 @@ export async function POST(request: NextRequest) {
             args: [routePlanner.commands as `0x${string}`, [encodedActions as `0x${string}`], deadline]
         });
 
-        console.log(`[Swap API] Submitting transaction for ${wallet.address}...`);
+        console.log(`[Swap API] Submitting isolated transaction for ${wallet.address}...`);
         const txReceipt = await privy.walletApi.ethereum.sendTransaction({
             walletId: wallet.id,
             caip2: `eip155:${CHAIN_ID}`,
