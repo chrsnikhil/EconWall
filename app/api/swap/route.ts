@@ -66,12 +66,13 @@ export async function POST(request: NextRequest) {
         const amountWei = parseEther(amount.toString());
 
         // Pool key - MUST match exactly how the pool was initialized
+        // Pool key - Updated for SurgeHook with Dynamic Fees
         const poolKey = {
             currency0: NATIVE_ETH,
             currency1: EWT_ADDRESS,
-            fee: 3000,          // 0.3% fee
-            tickSpacing: 60,    // ✅ Verified correct value
-            hooks: NATIVE_ETH,  // No hooks (address 0x0)
+            fee: 0x800000,          // Dynamic fee flag (0x800000)
+            tickSpacing: 60,
+            hooks: process.env.NEXT_PUBLIC_SURGE_HOOK_ADDRESS as `0x${string}`,
         };
 
         // Build V4 swap using the SDK

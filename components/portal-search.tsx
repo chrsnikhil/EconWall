@@ -45,7 +45,7 @@ export function PortalSearch() {
                 // Check if deposit is needed (402 Payment Required)
                 if (res.status === 402 && data.needsDeposit) {
                     setStatus("denied");
-                    setError(`Please deposit ETH to your embedded wallet first. Current balance: ${data.currentBalance} ETH`);
+                    setError(`Insufficient ETH. Please deposit ETH to your embedded wallet to cover gas fees and start swapping.`);
                     return;
                 }
 
@@ -132,15 +132,26 @@ export function PortalSearch() {
                 )}
 
                 {status === "denied" && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-center space-y-3">
-                        <div className="text-red-500 font-medium">✗ Access Denied</div>
-                        <div className="text-xs text-muted-foreground">{error}</div>
-                        <a
-                            href="/"
-                            className="inline-block px-4 py-2 text-xs font-medium bg-primary text-primary-foreground rounded hover:opacity-90"
-                        >
-                            Get EWT Tokens
-                        </a>
+                    <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-center space-y-3">
+                        <div className="text-destructive font-medium flex items-center justify-center gap-2">
+                            <span>⚠️</span> Access Denied
+                        </div>
+                        <div className="text-xs text-muted-foreground px-2">
+                            {error}
+                        </div>
+
+                        {error?.includes("Insufficient ETH") ? (
+                            <div className="text-[10px] text-muted-foreground bg-background/50 p-2 rounded border border-border/50">
+                                Tip: Send Sepolia ETH to your embedded wallet address to start using the app.
+                            </div>
+                        ) : (
+                            <a
+                                href="/"
+                                className="inline-block px-4 py-2 text-xs font-medium bg-primary text-primary-foreground rounded hover:opacity-90"
+                            >
+                                Swap ETH for EWT
+                            </a>
+                        )}
                     </div>
                 )}
 
