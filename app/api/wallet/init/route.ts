@@ -33,21 +33,24 @@ export async function POST(req: NextRequest) {
             (account: any) =>
                 account.type === 'wallet' &&
                 account.walletClientType === 'privy'
-        );
+        ) as any;
 
-        // Check delegation status
-        const isDelegated = embeddedWallet?.delegated === true;
+        // For TEE wallets, "ready" means the wallet exists and has an ID
+        // The server can sign via the authorization key once the user adds signers
+        const hasWallet = !!embeddedWallet;
+        const walletId = embeddedWallet?.id;
 
         console.log(`[Wallet Init] User ${privyUserId}:`);
         console.log(`  - Embedded Wallet: ${embeddedWallet?.address || 'None'}`);
-        console.log(`  - Delegated: ${isDelegated}`);
+        console.log(`  - Wallet ID: ${walletId || 'None'}`);
 
         return NextResponse.json({
             success: true,
             privyUserId: user.id,
             embeddedWallet: embeddedWallet ? {
                 address: embeddedWallet.address,
-                delegated: isDelegated
+                id: walletId,
+                ready: hasWallet && !!walletId
             } : null
         });
 

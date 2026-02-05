@@ -121,7 +121,7 @@ export function ServerWalletSidebar({
 
     const handleSwap = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!walletAddress || isSwapping) return;
+        if (!walletAddress || isSwapping || !privyUserId) return;
 
         setIsSwapping(true);
         setSwapStatus("idle");
@@ -142,7 +142,7 @@ export function ServerWalletSidebar({
             if (!res.ok) throw new Error(data.error || "Swap failed");
 
             setSwapStatus("success");
-            setSwapMessage(`Swapped ${swapAmount} ETH for EWT!`);
+            setSwapMessage(`Swapped ${swapAmount} ETH for EWT! TX: ${data.txHash?.slice(0, 10)}...`);
             ethBalance.refetch();
             // @ts-ignore
             ewtBalance.refetch();
