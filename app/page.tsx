@@ -99,7 +99,7 @@ export default function Home() {
     // 1. Try "The Real Way" (CCIP-Read) first
     try {
       console.log("Attempting On-Chain CCIP-Read...");
-      await resolveEnsWithCcip(RESOLVER_ADDRESS as Hex, "econwall.eth", serverWalletAddress as Hex);
+      await resolveEnsWithCcip(RESOLVER_ADDRESS as Hex, "econwall.eth", serverWalletAddress as Hex, privyUserId);
       setAppState("BROWSER");
       return;
     } catch (err) {
@@ -111,7 +111,7 @@ export default function Home() {
       const res = await fetch("/api/gateway", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sender: serverWalletAddress }),
+        body: JSON.stringify({ sender: serverWalletAddress, privyUserId }),
       });
 
       const data = await res.json();

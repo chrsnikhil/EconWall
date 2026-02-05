@@ -1,11 +1,98 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decryptUrl, getClientKey } from "@/lib/url-crypto";
+import { incrementClicks, shouldTriggerSwap, resetClicks, getClickCount, getBatchThreshold, isAccessBlocked, isSwapInProgress, setSwapLock } from "@/lib/browse-session";
 
 // The encryption key for client-side (embedded in injected JS)
 const CLIENT_KEY = getClientKey();
+const PROXY_BASE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
+/**
+ * Trigger batch swap (ETH → EWT) for click metering
+ */
+async function triggerBatchSwap(privyUserId: string): Promise<boolean> {
+    try {
+        console.log(`[Proxy] Triggering batch swap for ${privyUserId}`);
+
+        const response = await fetch(`${PROXY_BASE}/api/swap`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                direction: "eth_to_ewt",
+                amount: "0.0005",  // Small amount per batch
+                privyUserId: privyUserId
+            }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            console.log(`[Proxy] Batch swap successful! TX: ${result.txHash}`);
+            return true;
+        } else {
+            console.error(`[Proxy] Batch swap failed: ${result.error}`);
+            return false;
+        }
+    } catch (error: any) {
+        console.error(`[Proxy] Batch swap error: ${error.message}`);
+        return false;
+    }
+}
 
 // Proxies ANY URL passed as query param (AES encrypted)
 export async function GET(req: NextRequest) {
+    // Read session cookie for wallet tracking
+    const sessionCookie = req.cookies.get("econwall_session")?.value;
+    let sessionData: { wallet?: string; privyUserId?: string } = {};
+
+    if (sessionCookie) {
+        try {
+            const decrypted = decryptUrl(sessionCookie);
+            if (decrypted) {
+                sessionData = JSON.parse(decrypted);
+            }
+        } catch (e) {
+            console.warn("[Proxy] Failed to parse session cookie");
+        }
+    }
+
+    const walletAddress = sessionData.wallet;
+    const privyUserId = sessionData.privyUserId;
+
+    // Track clicks if we have a wallet
+    if (walletAddress) {
+        // CHECK IF BLOCKED
+        if (isAccessBlocked(walletAddress)) {
+            console.warn(`[Proxy] BLOCKED wallet ${walletAddress.slice(0, 8)}... - Swaps failing`);
+            return new NextResponse(
+                `<html><body><h1>Access Paused</h1><p>Automatic payment swaps have failed multiple times.</p><p>Please check your wallet balance to continue browsing.</p></body></html>`,
+                { status: 402, headers: { "Content-Type": "text/html" } }
+            );
+        }
+
+        const clickCount = incrementClicks(walletAddress);
+        console.log(`[Proxy] Wallet ${walletAddress.slice(0, 8)}... - Click ${clickCount}/${getBatchThreshold()}`);
+
+        // Check if batch swap should be triggered
+        if (shouldTriggerSwap(walletAddress) && privyUserId) {
+
+            // Check Lock: Is a swap already running?
+            if (isSwapInProgress(walletAddress)) {
+                console.log(`[Proxy] Swap already in progress for ${walletAddress.slice(0, 8)}... - Skipping trigger`);
+            } else {
+                console.log(`[Proxy] Threshold reached! Triggering batch swap...`);
+                setSwapLock(walletAddress, true); // LOCK
+
+                // Trigger swap asynchronously (don't block page load)
+                triggerBatchSwap(privyUserId).then(success => {
+                    setSwapLock(walletAddress, false); // UNLOCK
+                    if (success) {
+                        resetClicks(walletAddress);
+                    }
+                });
+            }
+        }
+    }
+
     const encryptedUrl = req.nextUrl.searchParams.get("u");
     const rawUrl = req.nextUrl.searchParams.get("url"); // Fallback for backwards compat
 

@@ -11,12 +11,18 @@ type AccessStatus = "idle" | "checking" | "granted" | "denied" | "error";
 
 export function PortalSearch() {
     const { address, isConnected } = useAccount();
-    const { user } = usePrivy();
+    const { user, authenticated } = usePrivy();
     const [status, setStatus] = useState<AccessStatus>("idle");
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
     const handleAccessCheck = async () => {
+        // Debug logging
+        console.log("[PortalSearch] Address:", address);
+        console.log("[PortalSearch] Privy user:", user);
+        console.log("[PortalSearch] Privy user.id:", user?.id);
+        console.log("[PortalSearch] Authenticated:", authenticated);
+
         if (!address && !user?.id) return;
 
         setStatus("checking");
@@ -36,6 +42,13 @@ export function PortalSearch() {
             const data = await res.json();
 
             if (!res.ok) {
+                // Check if deposit is needed (402 Payment Required)
+                if (res.status === 402 && data.needsDeposit) {
+                    setStatus("denied");
+                    setError(`Please deposit ETH to your embedded wallet first. Current balance: ${data.currentBalance} ETH`);
+                    return;
+                }
+
                 setStatus("denied");
                 setError(data.error || "Access denied - No EWT tokens");
                 return;
@@ -45,7 +58,7 @@ export function PortalSearch() {
             setStatus("granted");
 
             setTimeout(() => {
-                router.push(`/browser?verified=true&wallet=${address?.slice(0, 6)}`);
+                router.push(`/browser?verified=true&wallet=${data.embeddedWallet?.slice(0, 6)}`);
             }, 500);
 
         } catch (err: any) {

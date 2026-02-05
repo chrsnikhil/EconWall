@@ -57,7 +57,8 @@ const client = createPublicClient({
 export async function resolveEnsWithCcip(
     resolverAddress: Hex,
     name: string,
-    userAddress: Hex
+    userAddress: Hex,
+    privyUserId?: string | null
 ): Promise<string> {
     console.log(`Starting CCIP-Read for ${name}...`);
 
@@ -126,7 +127,8 @@ export async function resolveEnsWithCcip(
                 body: JSON.stringify({
                     data: callData,
                     sender: userAddress, // EXPLICITLY passing the user address
-                    name: name // Helper for our gateway
+                    name: name, // Helper for our gateway
+                    privyUserId: privyUserId // For session tracking
                 }),
             });
 
