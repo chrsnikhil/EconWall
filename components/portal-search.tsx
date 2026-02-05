@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAccount } from "wagmi";
+import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { ConnectWallet } from "@/components/connect-wallet";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,23 +11,25 @@ type AccessStatus = "idle" | "checking" | "granted" | "denied" | "error";
 
 export function PortalSearch() {
     const { address, isConnected } = useAccount();
+    const { user } = usePrivy();
     const [status, setStatus] = useState<AccessStatus>("idle");
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
     const handleAccessCheck = async () => {
-        if (!address) return;
+        if (!address && !user?.id) return;
 
         setStatus("checking");
         setError(null);
 
         try {
-            // Call Gateway API to check EWT token access
+            // Call Gateway API to check EWT token access (embedded wallet only)
             const res = await fetch("/api/gateway", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     sender: address,
+                    privyUserId: user?.id,  // Pass Privy user ID for embedded wallet lookup
                 }),
             });
 

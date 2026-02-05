@@ -281,7 +281,7 @@ export function ServerWalletSidebar({
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-sm font-bold text-white">{parseFloat(formatEther((ewtBalance.data as bigint) || 0n)).toFixed(0)}</p>
+                                        <p className="text-sm font-bold text-white">{parseFloat(formatEther((ewtBalance.data as bigint) || 0n)).toFixed(4)}</p>
                                         <p className="text-[10px] text-white/20 font-bold uppercase tracking-tighter">--.-- USD</p>
                                     </div>
                                 </div>
@@ -449,7 +449,7 @@ export function ServerWalletSidebar({
                                     <div className="space-y-4 pt-2">
                                         <div className="flex justify-between px-1">
                                             <span className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]">Predicted Output</span>
-                                            <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">BAL: {parseFloat(formatEther((ewtBalance.data as bigint) || 0n)).toFixed(0)}</span>
+                                            <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">BAL: {parseFloat(formatEther((ewtBalance.data as bigint) || 0n)).toFixed(4)}</span>
                                         </div>
                                         <div className="flex items-center gap-4 h-20 bg-black border border-white/10 rounded-xl px-4 opacity-50 cursor-not-allowed">
                                             <EwtLogo />
