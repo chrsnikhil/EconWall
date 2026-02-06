@@ -13,7 +13,7 @@ export default function WalletManager() {
     // @ts-ignore - access login directly
     const { ready, authenticated, user, login } = usePrivy();
     const { wallets } = useWallets();
-    const { addSigners, getSigners } = useSigners();
+    const { addSigners } = useSigners();
     const { createWallet } = useCreateWallet();
 
     const [embeddedWallet, setEmbeddedWallet] = useState<any>(null);

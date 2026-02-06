@@ -143,6 +143,34 @@ export async function POST(req: NextRequest) {
         console.log(`[Agent: Gateway] Request for ${name || "unknown"}`);
         console.log(`[Agent: Gateway] Sender: ${sender}, PrivyUserId: ${privyUserId}`);
 
+        // ────────────────────────────────────────────────────────────
+        // RESOLVE ENS NAME via DB
+        // ────────────────────────────────────────────────────────────
+        let actualUrl: string | null = null;
+        if (name) {
+            // Normalized lookup
+            const { getRegistrationUrl } = await import("@/lib/db");
+            actualUrl = getRegistrationUrl(name);
+        }
+
+        if (!actualUrl) {
+            // Fallback for demo/dev
+            if (name === "econwall.eth") actualUrl = `${PROXY_BASE}/browse/econwall`;
+            else {
+                // Should we error? For now, default to internal browser home if not found
+                // Or return 404 to be strict?
+                // Let's be strict for registered names, but generous for defaults
+            }
+        }
+
+        if (actualUrl) {
+            console.log(`[Agent: Gateway] Resolved ${name} -> ${actualUrl}`);
+        } else {
+            console.warn(`[Agent: Gateway] Unknown ENS Name: ${name}`);
+            // If strictly enforcing registration:
+            // return NextResponse.json({ error: "Name not registered" }, { status: 404 });
+        }
+
         let embeddedWalletAddress: `0x${string}` | null = null;
         let userPrivyId = privyUserId;
 
@@ -307,13 +335,13 @@ export async function POST(req: NextRequest) {
         console.log(`[Agent: Gateway] Access granted for ${embeddedWalletAddress}`);
 
         // Construct response
-        const domain = name || "econwall.eth";
-        const proxyUrl = `${PROXY_BASE}/browse/${domain}`;
+        // Use resolving logic
+        const finalUrl = actualUrl || `${PROXY_BASE}/browse/${name || "econwall.eth"}`;
 
         // Encode as ENS Text Record result (string)
         const result = encodeAbiParameters(
             parseAbiParameters("string"),
-            [proxyUrl]
+            [finalUrl]
         );
 
         // Sign the result
@@ -331,7 +359,7 @@ export async function POST(req: NextRequest) {
         // Create response with session cookie for click tracking
         const response = NextResponse.json({
             data: responseData,
-            proxyUrl,
+            proxyUrl: finalUrl,
             embeddedWallet: embeddedWalletAddress,
             privyUserId: userPrivyId,
         });
@@ -350,7 +378,7 @@ export async function POST(req: NextRequest) {
         });
         console.log(`[Agent: Gateway] Session cookie set for ${embeddedWalletAddress}`);
 
-        console.log(`[Agent: Gateway] Access granted - returning ${proxyUrl}`);
+        console.log(`[Agent: Gateway] Access granted - returning ${finalUrl}`);
 
         return response;
 

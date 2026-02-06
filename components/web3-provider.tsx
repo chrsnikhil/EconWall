@@ -20,7 +20,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
                     accentColor: '#676FFF',
                 },
                 embeddedWallets: {
-                    createOnLogin: 'all-users', // Create embedded wallet for ALL users
+                    // createOnLogin: 'all-users',
                 },
             }}
         >

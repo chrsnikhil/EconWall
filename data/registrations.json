@@ -1,0 +1,14 @@
+{
+  "demo.econwall.eth": {
+    "subdomain": "demo",
+    "ensName": "demo.econwall.eth",
+    "actualUrl": "http://localhost:3001",
+    "createdAt": "2026-02-06T09:06:28.514Z"
+  },
+  "chrsnikhil.econwall.eth": {
+    "subdomain": "chrsnikhil",
+    "ensName": "chrsnikhil.econwall.eth",
+    "actualUrl": "https://cnos.vercel.app/",
+    "createdAt": "2026-02-06T09:06:28.516Z"
+  }
+}

@@ -36,7 +36,7 @@ export default function Home() {
   const embeddedWallet = user?.linkedAccounts?.find(
     (account: any) => account.type === 'wallet' && account.walletClientType === 'privy'
   );
-  const serverWalletAddress = embeddedWallet?.address || null;
+  const serverWalletAddress = (embeddedWallet as any)?.address || null;
   const privyUserId = user?.id || null;
 
   // AES encryption key (must match server)
@@ -84,8 +84,8 @@ export default function Home() {
   // Log embedded wallet status
   useEffect(() => {
     if (authenticated && embeddedWallet) {
-      console.log("✅ [Agent: Interface] Embedded Wallet Ready:", embeddedWallet.address);
-      console.log("✅ [Agent: Interface] Delegated:", embeddedWallet.delegated);
+      console.log("✅ [Agent: Interface] Embedded Wallet Ready:", (embeddedWallet as any).address);
+      console.log("✅ [Agent: Interface] Delegated:", (embeddedWallet as any).delegated);
     }
   }, [authenticated, embeddedWallet]);
 
@@ -137,7 +137,35 @@ export default function Home() {
     if (!url.trim()) return;
 
     let targetUrl = url;
-    if (!targetUrl.startsWith("http")) {
+
+    // RESOLVE ENS NAMES
+    if (targetUrl.toLowerCase().includes('.eth')) {
+      try {
+        // Show some loading state if possible, or just await
+        const res = await fetch("/api/gateway", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: targetUrl,
+            sender: serverWalletAddress,
+            privyUserId
+          }),
+        });
+        const data = await res.json();
+
+        if (res.ok && data.proxyUrl) {
+          console.log(`[Browser] Resolved ${targetUrl} -> ${data.proxyUrl}`);
+          targetUrl = data.proxyUrl;
+        } else {
+          setError(`Could not resolve ${targetUrl}`);
+          setAppState("DENIED"); // Show error state
+          return;
+        }
+      } catch (err) {
+        console.error("Resolution failed:", err);
+        return;
+      }
+    } else if (!targetUrl.startsWith("http")) {
       targetUrl = "https://" + targetUrl;
     }
 
@@ -199,10 +227,10 @@ export default function Home() {
           )}
 
           <Link
-            href="/swap"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2"
+            href="/register"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-4"
           >
-            Token Swap
+            Register Site
           </Link>
 
           {authenticated && (

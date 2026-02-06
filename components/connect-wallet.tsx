@@ -54,13 +54,13 @@ export function ConnectWallet() {
     }
 
     // Authenticated - show wallet info
-    const displayAddress = embeddedWallet?.address || user?.wallet?.address || 'Loading...';
+    const displayAddress = (embeddedWallet as any)?.address || user?.wallet?.address || 'Loading...';
 
     return (
         <div className="flex items-center gap-2">
             <div
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted border border-border cursor-pointer hover:bg-muted/80 transition-colors"
-                onClick={() => embeddedWallet?.address && navigator.clipboard.writeText(embeddedWallet.address)}
+                onClick={() => (embeddedWallet as any)?.address && navigator.clipboard.writeText((embeddedWallet as any).address)}
                 title="Click to copy address"
             >
                 <MetaMaskLogo />
