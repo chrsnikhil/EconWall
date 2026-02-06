@@ -11,7 +11,7 @@ const PROXY_BASE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
  */
 async function triggerBatchSwap(privyUserId: string): Promise<boolean> {
     try {
-        console.log(`[Proxy] Triggering batch swap for ${privyUserId}`);
+        console.log(`[Agent: Proxy] Triggering autonomous batch swap for ${privyUserId}`);
 
         const response = await fetch(`${PROXY_BASE}/api/swap`, {
             method: "POST",
@@ -26,14 +26,14 @@ async function triggerBatchSwap(privyUserId: string): Promise<boolean> {
         const result = await response.json();
 
         if (response.ok) {
-            console.log(`[Proxy] Batch swap successful! TX: ${result.txHash}`);
+            console.log(`[Agent: Proxy] Batch swap successful! TX: ${result.txHash}`);
             return true;
         } else {
-            console.error(`[Proxy] Batch swap failed: ${result.error}`);
+            console.error(`[Agent: Proxy] Batch swap failed: ${result.error}`);
             return false;
         }
     } catch (error: any) {
-        console.error(`[Proxy] Batch swap error: ${error.message}`);
+        console.error(`[Agent: Proxy] Batch swap error: ${error.message}`);
         return false;
     }
 }
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
                 sessionData = JSON.parse(decrypted);
             }
         } catch (e) {
-            console.warn("[Proxy] Failed to parse session cookie");
+            console.warn("[Agent: Proxy] Failed to parse session cookie");
         }
     }
 
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     if (walletAddress) {
         // CHECK IF BLOCKED
         if (isAccessBlocked(walletAddress)) {
-            console.warn(`[Proxy] BLOCKED wallet ${walletAddress.slice(0, 8)}... - Swaps failing`);
+            console.warn(`[Agent: Proxy] BLOCKED wallet ${walletAddress.slice(0, 8)}... - Swaps failing`);
             return new NextResponse(
                 `<html><body><h1>Access Paused</h1><p>Automatic payment swaps have failed multiple times.</p><p>Please check your wallet balance to continue browsing.</p></body></html>`,
                 { status: 402, headers: { "Content-Type": "text/html" } }
@@ -70,16 +70,16 @@ export async function GET(req: NextRequest) {
         }
 
         const clickCount = incrementClicks(walletAddress);
-        console.log(`[Proxy] Wallet ${walletAddress.slice(0, 8)}... - Click ${clickCount}/${getBatchThreshold()}`);
+        console.log(`[Agent: Proxy] Wallet ${walletAddress.slice(0, 8)}... - Interaction ${clickCount}/${getBatchThreshold()}`);
 
         // Check if batch swap should be triggered
         if (shouldTriggerSwap(walletAddress) && privyUserId) {
 
             // Check Lock: Is a swap already running?
             if (isSwapInProgress(walletAddress)) {
-                console.log(`[Proxy] Swap already in progress for ${walletAddress.slice(0, 8)}... - Skipping trigger`);
+                console.log(`[Agent: Proxy] Swap in progress for ${walletAddress.slice(0, 8)}... - Skipping trigger`);
             } else {
-                console.log(`[Proxy] Threshold reached! Triggering batch swap...`);
+                console.log(`[Agent: Proxy] Threshold reached! Autonomous swap initiated...`);
                 setSwapLock(walletAddress, true); // LOCK
 
                 // Trigger swap asynchronously (don't block page load)

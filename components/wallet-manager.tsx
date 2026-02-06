@@ -23,13 +23,13 @@ export default function WalletManager() {
 
     useEffect(() => {
         // Debug: Log what Privy sees
-        console.log('[WalletManager] Auth:', authenticated);
-        console.log('[WalletManager] Wallets from useWallets():', wallets);
-        console.log('[WalletManager] User linkedAccounts:', user?.linkedAccounts);
+        console.log('[Agent: Identity] Auth:', authenticated);
+        console.log('[Agent: Identity] Wallets from useWallets():', wallets);
+        console.log('[Agent: Identity] User accounts:', user?.linkedAccounts);
 
         // Debug: Log all wallet types in detail
         wallets.forEach((w: any, i: number) => {
-            console.log(`[WalletManager] Wallet ${i}:`, {
+            console.log(`[Agent: Identity] Wallet ${i}:`, {
                 walletClientType: w.walletClientType,
                 connectorType: w.connectorType,
                 address: w.address,
@@ -44,7 +44,7 @@ export default function WalletManager() {
                 embedded = wallets.find((w: any) => w.connectorType === 'embedded');
             }
             // DO NOT use fallback - we need the actual embedded wallet
-            console.log('[WalletManager] Found embedded wallet:', embedded);
+            console.log('[Agent: Identity] Found embedded wallet:', embedded);
             setEmbeddedWallet(embedded || null);
 
             const delegatedAccount = user?.linkedAccounts?.find(
@@ -88,12 +88,12 @@ export default function WalletManager() {
     const handleCreateWallet = async () => {
         setCreatingWallet(true);
         try {
-            console.log('[WalletManager] Creating embedded wallet...');
+            console.log('[Agent: Identity] Creating autonomous embedded wallet...');
             const wallet = await createWallet();
-            console.log('[WalletManager] ✅ Wallet created:', wallet);
+            console.log('[Agent: Identity] ✅ Wallet provisioned:', wallet);
             setEmbeddedWallet(wallet);
         } catch (error) {
-            console.error('[WalletManager] ❌ Failed to create wallet:', error);
+            console.error('[Agent: Identity] ❌ Failed to provision wallet:', error);
         } finally {
             setCreatingWallet(false);
         }
@@ -103,97 +103,67 @@ export default function WalletManager() {
 
     if (!authenticated) {
         return (
-            <Card className="w-full bg-zinc-900 border-zinc-800 text-zinc-100">
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <Wallet className="h-4 w-4 text-emerald-400" />
-                        Server Wallet Access
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-xs text-zinc-500 mb-3">
-                        Connect to the server to enable advanced features like automated trading.
-                    </div>
-                    <Button
-                        onClick={login}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-8 text-xs gap-2"
-                    >
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        Connect Server Account
-                    </Button>
-                </CardContent>
-            </Card>
+            <div className="space-y-2">
+                <div className="flex items-center gap-2 text-white/40">
+                    <ShieldCheck className="h-3 w-3" />
+                    <span className="text-[10px] uppercase tracking-widest font-bold">Server Access</span>
+                </div>
+                <Button
+                    onClick={login}
+                    className="w-full bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 border border-indigo-500/30 h-8 text-[10px] uppercase tracking-widest gap-2 font-bold"
+                >
+                    Connect Account
+                </Button>
+            </div>
         );
     }
 
     return (
-        <Card className="w-full bg-zinc-900 border-zinc-800 text-zinc-100">
-            <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Wallet className="h-4 w-4 text-emerald-400" />
-                    Server Wallet Access
-                </CardTitle>
-                <CardDescription className="text-xs text-zinc-500">
-                    Authorize the server to execute trades on your behalf.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                {embeddedWallet ? (
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between p-3 bg-zinc-950/50 rounded-lg border border-zinc-800/50">
-                            <div className="flex flex-col">
-                                <span className="text-xs text-zinc-400 font-mono">
-                                    {embeddedWallet.address.slice(0, 6)}...{embeddedWallet.address.slice(-4)}
-                                </span>
-                                <span className="text-[10px] text-zinc-600 uppercase tracking-wider">
-                                    Embedded Wallet
-                                </span>
-                            </div>
-                            {isDelegated ? (
-                                <div className="flex items-center gap-1.5 text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded text-xs">
-                                    <BadgeCheck className="h-3.5 w-3.5" />
-                                    <span>Active</span>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-1.5 text-amber-400 bg-amber-400/10 px-2 py-1 rounded text-xs">
-                                    <ShieldAlert className="h-3.5 w-3.5" />
-                                    <span>Required</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {!isDelegated ? (
-                            <Button
-                                onClick={handleDelegate}
-                                disabled={loading}
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs gap-2"
-                            >
-                                <ShieldCheck className="h-3.5 w-3.5" />
-                                {loading ? "Authorizing..." : "Enable Server Actions"}
-                            </Button>
-                        ) : (
-                            <div className="flex items-center gap-2 text-[10px] text-zinc-500 justify-center">
-                                <ShieldCheck className="h-3 w-3" />
-                                Server authorized to optimize trades
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="space-y-3">
-                        <div className="text-xs text-zinc-400 text-center">
-                            No embedded wallet found. Create one to enable server-side trading.
-                        </div>
-                        <Button
-                            onClick={handleCreateWallet}
-                            disabled={creatingWallet}
-                            className="w-full bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs gap-2"
-                        >
-                            <Plus className="h-3.5 w-3.5" />
-                            {creatingWallet ? "Creating Wallet..." : "Create Embedded Wallet"}
-                        </Button>
-                    </div>
+        <div className="space-y-3">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-white/40">
+                    <ShieldCheck className="h-3 w-3" />
+                    <span className="text-[10px] uppercase tracking-widest font-bold">Server Access</span>
+                </div>
+                {embeddedWallet && (
+                    isDelegated ? (
+                        <span className="text-[9px] text-emerald-400 font-black uppercase tracking-widest flex items-center gap-1">
+                            <BadgeCheck className="h-3 w-3" /> Active
+                        </span>
+                    ) : (
+                        <span className="text-[9px] text-amber-400 font-black uppercase tracking-widest flex items-center gap-1">
+                            <ShieldAlert className="h-3 w-3" /> Required
+                        </span>
+                    )
                 )}
-            </CardContent>
-        </Card>
+            </div>
+
+            {embeddedWallet ? (
+                !isDelegated ? (
+                    <Button
+                        onClick={handleDelegate}
+                        disabled={loading}
+                        className="w-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 h-8 text-[10px] uppercase tracking-widest gap-2 font-bold"
+                    >
+                        {loading ? "Authorizing..." : "Enable Access"}
+                    </Button>
+                ) : (
+                    <div className="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-center">
+                        <p className="text-[9px] text-emerald-500/60 uppercase tracking-widest font-bold">
+                            Optimization Active
+                        </p>
+                    </div>
+                )
+            ) : (
+                <Button
+                    onClick={handleCreateWallet}
+                    disabled={creatingWallet}
+                    className="w-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 h-8 text-[10px] uppercase tracking-widest gap-2 font-bold"
+                >
+                    <Plus className="h-3 w-3" />
+                    {creatingWallet ? "Creating..." : "Create Wallet"}
+                </Button>
+            )}
+        </div>
     );
 }

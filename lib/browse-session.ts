@@ -77,6 +77,38 @@ export function isAccessBlocked(wallet: string): boolean {
     return count >= BATCH_LIMIT;
 }
 
+// Track failed swaps per wallet
+const failedSwapCounts = new Map<string, number>();
+
+// Max failed swaps before kicking user
+const MAX_FAILURES = 5;
+
+/**
+ * Increment failed swap count
+ */
+export function incrementFailures(wallet: string): number {
+    const current = failedSwapCounts.get(wallet.toLowerCase()) || 0;
+    const newCount = current + 1;
+    failedSwapCounts.set(wallet.toLowerCase(), newCount);
+    console.log(`[BrowseSession] Wallet ${wallet.slice(0, 8)}... failures: ${newCount}/${MAX_FAILURES}`);
+    return newCount;
+}
+
+/**
+ * Reset failures on success
+ */
+export function resetFailures(wallet: string): void {
+    failedSwapCounts.set(wallet.toLowerCase(), 0);
+}
+
+/**
+ * Check if max failures reached
+ */
+export function isMaxFailuresReached(wallet: string): boolean {
+    const count = failedSwapCounts.get(wallet.toLowerCase()) || 0;
+    return count >= MAX_FAILURES;
+}
+
 /**
  * Get batch threshold
  */

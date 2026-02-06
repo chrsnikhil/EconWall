@@ -84,8 +84,8 @@ export default function Home() {
   // Log embedded wallet status
   useEffect(() => {
     if (authenticated && embeddedWallet) {
-      console.log("✅ [Page] Embedded Wallet Ready:", embeddedWallet.address);
-      console.log("✅ [Page] Delegated:", embeddedWallet.delegated);
+      console.log("✅ [Agent: Interface] Embedded Wallet Ready:", embeddedWallet.address);
+      console.log("✅ [Agent: Interface] Delegated:", embeddedWallet.delegated);
     }
   }, [authenticated, embeddedWallet]);
 
@@ -144,6 +144,18 @@ export default function Home() {
     const encrypted = await encryptUrl(targetUrl);
     window.location.href = `/api/proxy?u=${encrypted}`;
   };
+
+  // Heartbeat: Check access every 3 minutes when in BROWSER mode
+  useEffect(() => {
+    if (appState !== "BROWSER" || !serverWalletAddress) return;
+
+    const interval = setInterval(() => {
+      console.log("💓 [Agent: Interface] 3-Minute Heartbeat - Verifying Session...");
+      handleCheckAccess();
+    }, 3 * 60 * 1000); // 3 minutes
+
+    return () => clearInterval(interval);
+  }, [appState, serverWalletAddress]);
 
   // Quick links
   const quickLinks = [
@@ -266,7 +278,7 @@ export default function Home() {
                 Check Access
               </button>
               <div className="text-xs text-muted-foreground text-center">
-                Requires EWT tokens on Arc Testnet
+                Requires EWT tokens on Unichain Sepolia
               </div>
             </CardContent>
           </Card>
@@ -281,7 +293,7 @@ export default function Home() {
                 <div className="text-center">
                   <div className="font-medium">Checking Access...</div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    Verifying EWT balance on Arc Testnet
+                    Verifying EWT balance on Unichain Sepolia
                   </div>
                 </div>
               </div>
@@ -305,7 +317,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-muted-foreground">
-                You need EWT tokens on Arc Testnet to access the browser.
+                You need EWT tokens on Unichain Sepolia to access the browser.
               </div>
               <div className="flex gap-3">
 
@@ -418,7 +430,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="w-full px-6 py-6 text-center animate-fade-in">
         <p className="text-muted-foreground text-xs font-mono">
-          ECONWALL • Token-Gated Browser • ENS + CCIP-Read + Arc Testnet
+          ECONWALL • Token-Gated Browser • ENS + CCIP-Read + Unichain Sepolia
         </p>
       </footer>
     </div >

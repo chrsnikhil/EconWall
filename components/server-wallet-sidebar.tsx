@@ -198,8 +198,7 @@ export function ServerWalletSidebar({
                 {/* Account Section */}
                 <div className="px-6 py-6 border-b border-white/5 space-y-4 bg-white/[0.02]">
 
-                    {/* Delegation Manager - IMPORTANT */}
-                    <WalletManager />
+
 
                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between group">
                         <div className="flex items-center gap-3">
@@ -495,13 +494,19 @@ export function ServerWalletSidebar({
                     )}
                 </div>
 
-                {/* Footer Section */}
-                <div className="p-8 border-t border-white/5 flex flex-col items-center gap-3 bg-white/[0.01] grayscale opacity-50">
-                    <div className="flex items-center gap-3">
-                        <Shield className="w-4 h-4 text-white" />
-                        <p className="text-[10px] text-white tracking-[0.4em] font-black uppercase">Secure Protocol Layer</p>
+                {/* Footer Section with Wallet Manager */}
+                <div className="border-t border-white/5 bg-white/[0.01]">
+                    <div className="p-6">
+                        <WalletManager />
                     </div>
-                    <p className="text-[9px] text-white/20 font-mono tracking-[0.3em] font-black uppercase">NODE_ID: {privyUserId?.slice(-16).toUpperCase() || "NO_AUTH"}</p>
+
+                    <div className="pb-8 px-8 flex flex-col items-center gap-3 grayscale opacity-50">
+                        <div className="flex items-center gap-3">
+                            <Shield className="w-4 h-4 text-white" />
+                            <p className="text-[10px] text-white tracking-[0.4em] font-black uppercase">Secure Protocol Layer</p>
+                        </div>
+                        <p className="text-[9px] text-white/20 font-mono tracking-[0.3em] font-black uppercase">NODE_ID: {privyUserId?.slice(-16).toUpperCase() || "NO_AUTH"}</p>
+                    </div>
                 </div>
             </div>
         </>

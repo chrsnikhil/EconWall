@@ -18,10 +18,10 @@ export function PortalSearch() {
 
     const handleAccessCheck = async () => {
         // Debug logging
-        console.log("[PortalSearch] Address:", address);
-        console.log("[PortalSearch] Privy user:", user);
-        console.log("[PortalSearch] Privy user.id:", user?.id);
-        console.log("[PortalSearch] Authenticated:", authenticated);
+        console.log("[Agent: Portal] Address:", address);
+        console.log("[Agent: Portal] Privy user:", user);
+        console.log("[Agent: Portal] Privy user.id:", user?.id);
+        console.log("[Agent: Portal] Authenticated:", authenticated);
 
         if (!address && !user?.id) return;
 
