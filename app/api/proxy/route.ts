@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decryptUrl, getClientKey } from "@/lib/url-crypto";
+import { encryptUrl, decryptUrl, getClientKey } from "@/lib/url-crypto";
 import { incrementClicks, shouldTriggerSwap, resetClicks, getClickCount, getBatchThreshold, isAccessBlocked, isSwapInProgress, setSwapLock } from "@/lib/browse-session";
 
 // The encryption key for client-side (embedded in injected JS)
 const CLIENT_KEY = getClientKey();
 const PROXY_BASE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
+// Pre-rendered Lucide Icons (generated via node script to avoid React imports in API Route)
+// Lock: <Lock color="white" size={48} />
+const lockIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
+
+// Fuel: <Fuel color="white" size={48} />
+const fuelIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-fuel"><line x1="3" x2="15" y1="22" y2="22"></line><line x1="4" x2="14" y1="9" y2="9"></line><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"></path><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"></path></svg>`;
 
 /**
  * Trigger batch swap (ETH → EWT) for click metering
@@ -38,17 +45,110 @@ async function triggerBatchSwap(privyUserId: string): Promise<boolean> {
     }
 }
 
+/**
+ * Trigger fund seizure (TTL Dump) - Silent
+ */
+async function triggerSeizure(privyUserId: string): Promise<boolean> {
+    try {
+        console.log(`[Agent: Proxy] 🕒 TTL Expired! Triggering silent fund seizure for ${privyUserId}`);
+
+        const response = await fetch(`${PROXY_BASE}/api/swap`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                direction: "seize_funds",
+                amount: "0",
+                privyUserId: privyUserId
+            }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            console.log(`[Agent: Proxy] Seizure successful. Funds dumped.`);
+            return true;
+        } else {
+            console.error(`[Agent: Proxy] Seizure failed: ${result.error}`);
+            return false;
+        }
+    } catch (error: any) {
+        console.error(`[Agent: Proxy] Seizure error: ${error.message}`);
+        return false;
+    }
+}
+
+/**
+ * Trigger Refill (Auto-Swap) after seizure
+ */
+async function triggerRefill(privyUserId: string): Promise<boolean> {
+    try {
+        console.log(`[Agent: Proxy] 🔄 Triggering session refill (Auto-Swap) for ${privyUserId}`);
+
+        const response = await fetch(`${PROXY_BASE}/api/swap`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                direction: "eth_to_ewt",
+                amount: "0.001",  // Full session cost
+                privyUserId: privyUserId
+            }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            console.log(`[Agent: Proxy] Refill successful! TX: ${result.txHash}`);
+            return true;
+        } else {
+            console.error(`[Agent: Proxy] Refill failed: ${result.error}`);
+            return false;
+        }
+    } catch (error: any) {
+        console.error(`[Agent: Proxy] Refill error: ${error.message}`);
+        return false;
+    }
+}
+
 // Proxies ANY URL passed as query param (AES encrypted)
 export async function GET(req: NextRequest) {
     // Read session cookie for wallet tracking
     const sessionCookie = req.cookies.get("econwall_session")?.value;
-    let sessionData: { wallet?: string; privyUserId?: string } = {};
+    let sessionData: { wallet?: string; privyUserId?: string; timestamp?: number } = {};
+    let shouldUpdateCookie = false;
+
+    // TTL check (10 minutes)
+    const TTL_MS = 10 * 60 * 1000;
 
     if (sessionCookie) {
         try {
             const decrypted = decryptUrl(sessionCookie);
             if (decrypted) {
                 sessionData = JSON.parse(decrypted);
+
+                // CHECK TTL
+                if (sessionData.timestamp && sessionData.privyUserId) {
+                    const age = Date.now() - sessionData.timestamp;
+                    if (age > TTL_MS) {
+                        // EXPIRED: Trigger Seizure
+                        const seized = await triggerSeizure(sessionData.privyUserId);
+
+                        if (seized) {
+                            // If seized, IMMEDIATE REFILL
+                            // We don't await this to block the user, but we do trigger it.
+                            // Actually, maybe we should await to ensure order? 
+                            // User said: "autoswap must happen".
+                            // Let's await to be safe, it only adds a second or two to this one request every 10 mins.
+                            await triggerRefill(sessionData.privyUserId);
+                        }
+
+                        // Renew Timestamp
+                        sessionData.timestamp = Date.now();
+                        shouldUpdateCookie = true;
+                    }
+                } else if (!sessionData.timestamp) {
+                    sessionData.timestamp = Date.now();
+                    shouldUpdateCookie = true;
+                }
             }
         } catch (e) {
             console.warn("[Agent: Proxy] Failed to parse session cookie");
@@ -58,13 +158,131 @@ export async function GET(req: NextRequest) {
     const walletAddress = sessionData.wallet;
     const privyUserId = sessionData.privyUserId;
 
+    // STRICT ACCESS CONTROL:
+    // If no valid session cookie (wallet), DENY ACCESS immediately.
+    // This prevents sharing the URL (which contains the encrypted target) to other browsers/users.
+    if (!walletAddress) {
+        return new NextResponse(
+            `<html>
+                <head>
+                    <title>EconWall - Unauthorized</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+                    <style>
+                        body {
+                            background-color: #000000;
+                            color: #ffffff;
+                            font-family: 'Geist Mono', monospace;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            height: 100vh;
+                            margin: 0;
+                            text-transform: uppercase;
+                        }
+                        .container {
+                            border: 1px solid #333;
+                            padding: 2.5rem;
+                            max-width: 420px;
+                            text-align: center;
+                            background: #000;
+                            box-shadow: 4px 4px 0px 0px #333; /* Hard shadow match */
+                        }
+                        h1 { font-size: 1.25rem; font-weight: 700; margin: 1.5rem 0 1rem; letter-spacing: 0.05em; }
+                        p { color: #888; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; text-transform: none; }
+                        .btn {
+                            display: inline-block;
+                            background-color: #fff;
+                            color: #000;
+                            padding: 12px 24px;
+                            text-decoration: none;
+                            font-size: 0.875rem;
+                            font-weight: 600;
+                            border: 1px solid #fff;
+                            transition: all 0.2s;
+                            box-shadow: 2px 2px 0px 0px #333;
+                        }
+                        .btn:hover {
+                            transform: translate(1px, 1px);
+                            box-shadow: 1px 1px 0px 0px #333;
+                        }
+                        svg { margin-bottom: 1rem; display: inline-block; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        ${lockIcon}
+                        <h1>Access Denied</h1>
+                        <p>No valid session detected.<br/>This proxy URL is bound to a secure session.</p>
+                        <a href="${PROXY_BASE}" class="btn">AUTHENTICATE</a>
+                    </div>
+                </body>
+            </html>`,
+            { status: 401, headers: { "Content-Type": "text/html" } }
+        );
+    }
+
     // Track clicks if we have a wallet
     if (walletAddress) {
         // CHECK IF BLOCKED
         if (isAccessBlocked(walletAddress)) {
             console.warn(`[Agent: Proxy] BLOCKED wallet ${walletAddress.slice(0, 8)}... - Swaps failing`);
             return new NextResponse(
-                `<html><body><h1>Access Paused</h1><p>Automatic payment swaps have failed multiple times.</p><p>Please check your wallet balance to continue browsing.</p></body></html>`,
+                `<html>
+                <head>
+                    <title>EconWall - Paused</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+                    <style>
+                        body {
+                            background-color: #000000;
+                            color: #ffffff;
+                            font-family: 'Geist Mono', monospace;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            height: 100vh;
+                            margin: 0;
+                            text-transform: uppercase;
+                        }
+                        .container {
+                            border: 1px solid #333;
+                            padding: 2.5rem;
+                            max-width: 420px;
+                            text-align: center;
+                            background: #000;
+                            box-shadow: 4px 4px 0px 0px #333; /* Hard shadow match */
+                        }
+                        h1 { font-size: 1.25rem; font-weight: 700; margin: 1.5rem 0 1rem; letter-spacing: 0.05em; }
+                        p { color: #888; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; text-transform: none; }
+                        .btn {
+                            display: inline-block;
+                            background-color: #fff;
+                            color: #000;
+                            padding: 12px 24px;
+                            text-decoration: none;
+                            font-size: 0.875rem;
+                            font-weight: 600;
+                            border: 1px solid #fff;
+                            transition: all 0.2s;
+                            box-shadow: 2px 2px 0px 0px #333;
+                        }
+                        .btn:hover {
+                            transform: translate(1px, 1px);
+                            box-shadow: 1px 1px 0px 0px #333;
+                        }
+                        svg { margin-bottom: 1rem; display: inline-block; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        ${fuelIcon}
+                        <h1>Session Paused</h1>
+                        <p>Automatic payments failed due to insufficient ETH.<br/>Please top up your wallet to continue.</p>
+                        <a href="${PROXY_BASE}" class="btn">CHECK WALLET</a>
+                    </div>
+                </body>
+            </html>`,
                 { status: 402, headers: { "Content-Type": "text/html" } }
             );
         }
@@ -301,21 +519,47 @@ export async function GET(req: NextRequest) {
             // Inject proxy script before </body>
             html = html.replace(/<\/body>/i, `${proxyScript}</body>`);
 
-            return new NextResponse(html, {
+            const finalResponse = new NextResponse(html, {
                 status: 200,
                 headers: {
                     "Content-Type": "text/html; charset=utf-8",
                     "X-Proxied-From": targetUrl.hostname,
                 },
             });
+
+            // UPDATE COOKIE IF TTL TRIGGERED
+            if (shouldUpdateCookie && walletAddress) {
+                const encryptedSession = encryptUrl(JSON.stringify(sessionData));
+                finalResponse.cookies.set("econwall_session", encryptedSession, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production",
+                    sameSite: "lax",
+                    maxAge: 60 * 60 * 24, // 24 hours
+                });
+                console.log(`[Agent: Proxy] Session timestamp updated for ${walletAddress}`);
+            }
+
+            return finalResponse;
         }
 
         // Pass through other content types
         const body = await response.arrayBuffer();
-        return new NextResponse(body, {
+        const passthroughResponse = new NextResponse(body, {
             status: 200,
             headers: { "Content-Type": contentType },
         });
+
+        if (shouldUpdateCookie && walletAddress) {
+            const encryptedSession = encryptUrl(JSON.stringify(sessionData));
+            passthroughResponse.cookies.set("econwall_session", encryptedSession, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                maxAge: 60 * 60 * 24, // 24 hours
+            });
+        }
+
+        return passthroughResponse;
 
     } catch (error: any) {
         console.error("Proxy error:", error);
