@@ -67,12 +67,17 @@ export function getClickCount(wallet: string): number {
 }
 
 // Max clicks allowed before blocking (grace period)
-const BATCH_LIMIT = 15;
+const BATCH_LIMIT = 25;
 
 /**
  * Check if access should be blocked (exceeded grace period)
  */
 export function isAccessBlocked(wallet: string): boolean {
+    // If a swap is actively processing, DO NOT BLOCK. Allow buffer.
+    if (isSwapInProgress(wallet)) {
+        return false;
+    }
+
     const count = clickCounts.get(wallet.toLowerCase()) || 0;
     return count >= BATCH_LIMIT;
 }
