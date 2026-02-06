@@ -444,20 +444,26 @@ export async function GET(req: NextRequest) {
                     const currentClicks = getClickCount(walletAddress);
                     clientStats.clicksTowardsBatch = currentClicks.toString();
 
-                    // Fetch all needed stats in parallel using Promise.allSettled to prevent failures from blocking page load
+                    // INFERRED STATS (Server-Side Tracking)
+                    // Since the hook attributes swaps to the Router, we infer activity from local click/batch data
+                    const batchThreshold = getBatchThreshold();
+
+                    // Total batches triggered = Floor(clicks / threshold)
+                    // But we want "Total Swaps" effectively. 
+                    // Let's assume 1 Batch = 1 Swap for the visualizer.
+                    const inferredSwaps = Math.floor(currentClicks / batchThreshold);
+
+                    clientStats.swapsLast10Min = inferredSwaps.toString();
+
+                    // Calculate Multiplier locally (matching SurgeHook logic)
+                    let localMult = "1";
+                    if (inferredSwaps >= 4) localMult = "3";
+                    if (inferredSwaps >= 7) localMult = "6";
+                    if (inferredSwaps >= 10) localMult = "10";
+                    clientStats.multiplier = localMult;
+
+                    // Fetch Balances (Actual On-Chain Data)
                     const results = await Promise.allSettled([
-                        publicClient.readContract({
-                            address: SURGE_HOOK_ADDRESS,
-                            abi: SURGE_HOOK_ABI,
-                            functionName: "getUserStats",
-                            args: [poolId, walletAddress as `0x${string}`],
-                        }),
-                        publicClient.readContract({
-                            address: SURGE_HOOK_ADDRESS,
-                            abi: SURGE_HOOK_ABI,
-                            functionName: "getCurrentFee",
-                            args: [poolId, walletAddress as `0x${string}`],
-                        }),
                         publicClient.getBalance({
                             address: walletAddress as `0x${string}`
                         }),
@@ -467,26 +473,25 @@ export async function GET(req: NextRequest) {
                             functionName: "balanceOf",
                             args: [walletAddress as `0x${string}`],
                         }),
+                        // Still fetch current base fee (Global)
+                        publicClient.readContract({
+                            address: SURGE_HOOK_ADDRESS,
+                            abi: SURGE_HOOK_ABI,
+                            functionName: "getCurrentFee",
+                            args: [poolId, walletAddress as `0x${string}`],
+                        })
                     ]);
 
-                    // Process Results
                     if (results[0].status === "fulfilled") {
-                        const [swaps, mult, total] = results[0].value;
-                        clientStats.swapsLast10Min = swaps.toString();
-                        clientStats.multiplier = mult.toString();
-                        clientStats.totalSwaps = total.toString();
+                        clientStats.ethBalance = Number(formatEther(results[0].value)).toFixed(4);
                     }
                     if (results[1].status === "fulfilled") {
-                        // Fee is in pips (5000 = 0.5%), we want percentage
-                        const feePips = Number(results[1].value);
-                        clientStats.currentFee = (feePips / 10000).toFixed(4);
+                        clientStats.ewtBalance = Number(formatEther(results[1].value)).toFixed(6);
                     }
                     if (results[2].status === "fulfilled") {
-                        clientStats.ethBalance = Number(formatEther(results[2].value)).toFixed(4);
-                    }
-                    if (results[3].status === "fulfilled") {
-                        // EWT: Use 6 decimals to show small accruals
-                        clientStats.ewtBalance = Number(formatEther(results[3].value)).toFixed(6);
+                        // Base Fee from Contract
+                        const feePips = Number(results[2].value);
+                        clientStats.currentFee = (feePips / 10000).toFixed(4);
                     }
 
                 } catch (e) {

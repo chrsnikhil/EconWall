@@ -384,26 +384,47 @@ export function ServerWalletSidebar({
 
                     {/* RECEIVE TAB */}
                     {activeTab === "RECEIVE" && (
-                        <div className="space-y-8 animate-in fade-in duration-300 flex flex-col items-center py-8 text-center">
-                            <div className="space-y-3">
-                                <h3 className="text-[12px] font-black text-white uppercase tracking-[0.5em]">Vault Inbound</h3>
-                                <p className="text-[10px] text-white/30 uppercase font-black tracking-widest leading-relaxed max-w-[260px]">Secure storage node address for Unichain Sepolia protocol.</p>
+                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                                <h3 className="text-[10px] font-bold text-white/80 uppercase tracking-[0.2em] mb-1">Vault Inbound</h3>
+                                <p className="text-[9px] text-white/30 font-bold uppercase tracking-widest">Secure node address (Unichain Sepolia)</p>
                             </div>
 
-                            <div className="w-full space-y-4">
-                                <div className="p-8 bg-white/[0.03] border border-white/10 rounded-2xl flex flex-col items-center gap-6">
-                                    <div className="space-y-3 w-full">
-                                        <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.4em]">Protocol Identifier</span>
-                                        <div className="p-5 bg-black border border-white/10 rounded-xl relative group">
-                                            <span className="text-sm font-mono text-white/90 break-all leading-relaxed tracking-tight">{walletAddress}</span>
+                            <div className="p-6 bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col gap-6">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between px-1">
+                                        <span className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]">Protocol ID</span>
+                                        {copied && <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest animate-in fade-in">Copied to Clipboard</span>}
+                                    </div>
+
+                                    <div
+                                        onClick={handleCopy}
+                                        className="p-4 bg-black border border-white/10 rounded-xl relative group cursor-pointer hover:border-white/30 transition-all active:scale-[0.99] select-none"
+                                    >
+                                        <p className="text-xs font-mono text-white/90 break-all leading-relaxed tracking-tight text-center">
+                                            {walletAddress}
+                                        </p>
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl backdrop-blur-sm">
+                                            <span className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                                                <Copy className="w-3 h-3" /> Click to Copy
+                                            </span>
                                         </div>
                                     </div>
-                                    <Button onClick={handleCopy} className="w-full h-16 rounded-xl bg-white text-black hover:bg-white/90 font-black uppercase text-xs tracking-[0.3em] transition-all flex items-center justify-center gap-3">
-                                        {copied ? <><Check className="w-5 h-5" /> Copied</> : <><Copy className="w-5 h-5" /> Copy ID</>}
-                                    </Button>
+                                    <div className="flex justify-center">
+                                        <span className="text-[9px] text-white/20 uppercase font-bold tracking-[0.3em]">Tap box to copy</span>
+                                    </div>
                                 </div>
-                                <div className="p-4 border border-white/5 rounded-xl">
-                                    <p className="text-[9px] text-white/20 uppercase font-black tracking-[0.3em] leading-relaxed">Warning: Only compatible with L2 Unichain Sepolia assets.</p>
+
+                                <div className="flex items-start gap-3 p-3 rounded-lg bg-yellow-500/5 border border-yellow-500/10">
+                                    <Shield className="w-4 h-4 text-yellow-500/40 shrink-0 mt-0.5" />
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] text-white/40 uppercase font-black tracking-wider leading-relaxed">
+                                            Warning: Layer 2 Assets Only
+                                        </p>
+                                        <p className="text-[9px] text-white/30 font-medium leading-relaxed">
+                                            Only send Unichain Sepolia assets to this node. Sending from other networks (Mainnet, Optimism, etc.) will result in permanent loss.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
