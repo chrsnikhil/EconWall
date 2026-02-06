@@ -1100,7 +1100,11 @@ export async function GET(req: NextRequest) {
 <!-- STATS POPUP (Styled Container) -->
 <div id="econwall-stats-popup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:100000;align-items:center;justify-content:center;font-family:'Geist Mono',monospace;">
     <div id="econwall-popup-container" style="background:#09090b;border:2px solid #27272a;padding:32px;width:380px;box-shadow:8px 8px 0px 0px #000;position:relative;border-radius:16px;">
-        <button id="econwall-popup-close" style="position:absolute;top:20px;right:20px;background:none;border:none;color:#555;font-size:24px;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='#555'">&times;</button>
+        <button id="econwall-popup-close" style="position:absolute;top:20px;right:20px;background:none;border:none;color:#555;padding:8px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color='white';this.style.transform='scale(1.1)'" onmouseout="this.style.color='#555';this.style.transform='scale(1)'">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18"/><path d="M6 6 18 18"/>
+            </svg>
+        </button>
         
         <div style="margin-bottom:24px;">
             <h2 style="color:#fff;margin:0 0 4px;font-size:16px;text-transform:uppercase;font-weight:800;letter-spacing:-0.02em;">Session Activity</h2>
@@ -1164,7 +1168,7 @@ export async function GET(req: NextRequest) {
         } else {
             browserBar.classList.add('visible');
             menuBtn.classList.add('active');
-            menuBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>';
+            menuBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6 18 18"/></svg>';
             // Auto-focus input
             setTimeout(function(){ document.getElementById('url-input').focus(); }, 150);
         }

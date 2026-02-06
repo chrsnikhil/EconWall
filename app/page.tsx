@@ -31,6 +31,17 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [registeredSites, setRegisteredSites] = useState<any[]>([]);
+
+  // Fetch registered sites
+  useEffect(() => {
+    fetch("/api/register")
+      .then(res => res.json())
+      .then(data => {
+        setRegisteredSites(Object.values(data));
+      })
+      .catch(err => console.error("Failed to fetch sites:", err));
+  }, []);
 
   // Get embedded wallet from Privy user
   const embeddedWallet = user?.linkedAccounts?.find(
@@ -440,6 +451,35 @@ export default function Home() {
                   ))}
                 </div>
               </div>
+
+              {/* Registered Sites */}
+              {registeredSites.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-border">
+                  <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                    Community Sites
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {registeredSites.map((site) => (
+                      <button
+                        key={site.ensName}
+                        onClick={async () => {
+                          const encrypted = await encryptUrl(site.actualUrl);
+                          window.location.href = `/api/proxy?u=${encrypted}`;
+                        }}
+                        className="px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/50 hover:bg-muted/50 transition-all duration-300 text-left group"
+                      >
+                        <div className="text-sm font-medium text-foreground group-hover:text-primary truncate">
+                          {site.subdomain}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate font-mono mt-0.5">
+                          {site.ensName}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
