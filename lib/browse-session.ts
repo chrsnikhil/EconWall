@@ -3,8 +3,21 @@
  * Tracks clicks per wallet for batch swap triggering
  */
 
+// Prevent HMR from resetting stats in development
+const globalForSession = global as unknown as {
+    clickCounts: Map<string, number>;
+    swapCounts: Map<string, number>;
+};
+
 // In-memory click counter per wallet
-const clickCounts = new Map<string, number>();
+const clickCounts = globalForSession.clickCounts || new Map<string, number>();
+// persistent swap counter per wallet
+const swapCounts = globalForSession.swapCounts || new Map<string, number>();
+
+if (process.env.NODE_ENV !== 'production') {
+    globalForSession.clickCounts = clickCounts;
+    globalForSession.swapCounts = swapCounts;
+}
 
 // Batch swap threshold (every N clicks)
 const BATCH_THRESHOLD = 10;
@@ -64,6 +77,24 @@ export function setSwapLock(wallet: string, locked: boolean): void {
  */
 export function getClickCount(wallet: string): number {
     return clickCounts.get(wallet.toLowerCase()) || 0;
+}
+
+/**
+ * Increment total swap count (persistent)
+ */
+export function incrementTotalSwaps(wallet: string): number {
+    const current = swapCounts.get(wallet.toLowerCase()) || 0;
+    const newCount = current + 1;
+    swapCounts.set(wallet.toLowerCase(), newCount);
+    console.log(`[BrowseSession] Wallet ${wallet.slice(0, 8)}... Total Swaps: ${newCount}`);
+    return newCount;
+}
+
+/**
+ * Get total swap count
+ */
+export function getTotalSwaps(wallet: string): number {
+    return swapCounts.get(wallet.toLowerCase()) || 0;
 }
 
 // Max clicks allowed before blocking (grace period)

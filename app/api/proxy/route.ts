@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { encryptUrl, decryptUrl, getClientKey } from "@/lib/url-crypto";
-import { incrementClicks, shouldTriggerSwap, resetClicks, getClickCount, getBatchThreshold, isAccessBlocked, isSwapInProgress, setSwapLock } from "@/lib/browse-session";
+import { incrementClicks, shouldTriggerSwap, resetClicks, getClickCount, getBatchThreshold, isAccessBlocked, isSwapInProgress, setSwapLock, incrementTotalSwaps, getTotalSwaps } from "@/lib/browse-session";
 
 import { createPublicClient, http, formatEther, encodeAbiParameters, parseAbiParameters, keccak256 } from "viem";
 import { unichainSepolia } from "@/lib/wagmi";
@@ -97,6 +97,7 @@ async function triggerBatchSwap(privyUserId: string): Promise<boolean> {
 
         if (response.ok) {
             console.log(`[Agent: Proxy] Batch swap successful! TX: ${result.txHash}`);
+            incrementTotalSwaps(privyUserId); // Track for stats
             return true;
         } else {
             console.error(`[Agent: Proxy] Batch swap failed: ${result.error}`);
@@ -173,6 +174,60 @@ async function triggerRefill(privyUserId: string): Promise<boolean> {
     }
 }
 
+/**
+ * Helper: Fetch live stats for a wallet
+ */
+// @ts-ignore
+async function getClientStats(walletAddress: string, privyUserId: string | undefined) {
+    let clientStats = {
+        swapsLast10Min: "0",
+        multiplier: "1",
+        totalSwaps: "0",
+        currentFee: "0.01",
+        ethBalance: "0",
+        ewtBalance: "0",
+        clicksTowardsBatch: "0"
+    };
+
+    if (!walletAddress) return clientStats;
+
+    try {
+        const poolId = getPoolId();
+
+        // GET CLICK COUNT
+        const currentClicks = getClickCount(walletAddress);
+        clientStats.clicksTowardsBatch = currentClicks.toString();
+
+        // PERSISTENT SWAP STATS
+        const totalSwaps = getTotalSwaps(privyUserId || "");
+        console.log(`[Agent: Proxy] Stats for ${privyUserId}: Total Swaps = ${totalSwaps}`);
+        clientStats.swapsLast10Min = totalSwaps.toString();
+
+        let localMult = "1";
+        if (totalSwaps >= 4) localMult = "3";
+        if (totalSwaps >= 7) localMult = "6";
+        if (totalSwaps >= 10) localMult = "10";
+        clientStats.multiplier = localMult;
+
+        // Fetch Balances
+        const results = await Promise.allSettled([
+            publicClient.getBalance({ address: walletAddress as `0x${string}` }),
+            publicClient.readContract({ address: EWT_ADDRESS, abi: ERC20_ABI, functionName: "balanceOf", args: [walletAddress as `0x${string}`] }),
+            publicClient.readContract({ address: SURGE_HOOK_ADDRESS, abi: SURGE_HOOK_ABI, functionName: "getCurrentFee", args: [poolId, walletAddress as `0x${string}`] })
+        ]);
+
+        if (results[0].status === "fulfilled") clientStats.ethBalance = Number(formatEther(results[0].value)).toFixed(4);
+        // @ts-ignore
+        if (results[1].status === "fulfilled") clientStats.ewtBalance = Number(formatEther(results[1].value)).toFixed(6);
+        if (results[2].status === "fulfilled") clientStats.currentFee = (Number(results[2].value) / 10000).toFixed(4);
+
+    } catch (e) {
+        console.warn("[Agent: Proxy] Failed to fetch stats:", e);
+    }
+
+    return clientStats;
+}
+
 
 // Proxies ANY URL passed as query param (AES encrypted)
 export async function GET(req: NextRequest) {
@@ -218,6 +273,12 @@ export async function GET(req: NextRequest) {
 
     const walletAddress = sessionData.wallet;
     const privyUserId = sessionData.privyUserId;
+
+    // API: JSON Stats Mode
+    if (req.nextUrl.searchParams.get("mode") === "stats") {
+        const stats = await getClientStats(walletAddress || "", privyUserId);
+        return NextResponse.json(stats);
+    }
 
     // STRICT ACCESS CONTROL
     if (!walletAddress) {
@@ -285,65 +346,146 @@ export async function GET(req: NextRequest) {
     if (walletAddress) {
         // CHECK IF BLOCKED
         if (isAccessBlocked(walletAddress)) {
-            console.warn(`[Agent: Proxy] BLOCKED wallet ${walletAddress.slice(0, 8)}... - Swaps failing`);
-            return new NextResponse(
-                `<html>
-                <head>
-                    <title>EconWall - Paused</title>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
-                    <style>
-                        body {
-                            background-color: #000000;
-                            color: #ffffff;
-                            font-family: 'Geist Mono', monospace;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            height: 100vh;
-                            margin: 0;
-                            text-transform: uppercase;
-                        }
-                        .container {
-                            border: 1px solid #333;
-                            padding: 2.5rem;
-                            max-width: 420px;
-                            text-align: center;
-                            background: #000;
-                            box-shadow: 4px 4px 0px 0px #333; /* Hard shadow match */
-                        }
-                        h1 { font-size: 1.25rem; font-weight: 700; margin: 1.5rem 0 1rem; letter-spacing: 0.05em; }
-                        p { color: #888; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; text-transform: none; }
-                        .btn {
-                            display: inline-block;
-                            background-color: #fff;
-                            color: #000;
-                            padding: 12px 24px;
-                            text-decoration: none;
-                            font-size: 0.875rem;
-                            font-weight: 600;
-                            border: 1px solid #fff;
-                            transition: all 0.2s;
-                            box-shadow: 2px 2px 0px 0px #333;
-                        }
-                        .btn:hover {
-                            transform: translate(1px, 1px);
-                            box-shadow: 1px 1px 0px 0px #333;
-                        }
-                        svg { margin-bottom: 1rem; display: inline-block; }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        ${fuelIcon}
-                        <h1>Session Paused</h1>
-                        <p>Automatic payments failed due to insufficient ETH.<br/>Please top up your wallet to continue.</p>
-                        <a href="${PROXY_BASE}" class="btn">CHECK WALLET</a>
-                    </div>
-                </body>
-            </html>`,
-                { status: 402, headers: { "Content-Type": "text/html" } }
-            );
+            console.warn(`[Agent: Proxy] BLOCKED wallet ${walletAddress.slice(0, 8)}... - Attempting recovery`);
+
+            // DEADLOCK FIX: Attempt to trigger swap even if blocked
+            // This handles cases where clicks > limit but swap failed previously
+            if (shouldTriggerSwap(walletAddress) && privyUserId && !isSwapInProgress(walletAddress)) {
+                console.log(`[Agent: Proxy] Recovery Swap initiated...`);
+                setSwapLock(walletAddress, true);
+
+                // We await this one because we need to know if we can unblock NOW
+                const success = await triggerBatchSwap(privyUserId);
+                setSwapLock(walletAddress, false);
+
+                if (success) {
+                    console.log(`[Agent: Proxy] Recovery Successful! Resetting clicks.`);
+                    resetClicks(walletAddress);
+                    // FALL THROUGH to allow access
+                } else {
+                    // Start of existing 402 block
+                    return new NextResponse(
+                        `<html>
+                            <head>
+                                <title>EconWall - Paused</title>
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+                                <style>
+                                    body {
+                                        background-color: #000000;
+                                        color: #ffffff;
+                                        font-family: 'Geist Mono', monospace;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        height: 100vh;
+                                        margin: 0;
+                                        text-transform: uppercase;
+                                    }
+                                    .container {
+                                        border: 1px solid #333;
+                                        padding: 2.5rem;
+                                        max-width: 420px;
+                                        text-align: center;
+                                        background: #000;
+                                        box-shadow: 4px 4px 0px 0px #333; /* Hard shadow match */
+                                    }
+                                    h1 { font-size: 1.25rem; font-weight: 700; margin: 1.5rem 0 1rem; letter-spacing: 0.05em; }
+                                    p { color: #888; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; text-transform: none; }
+                                    .btn {
+                                        display: inline-block;
+                                        background-color: #fff;
+                                        color: #000;
+                                        padding: 12px 24px;
+                                        text-decoration: none;
+                                        font-size: 0.875rem;
+                                        font-weight: 600;
+                                        border: 1px solid #fff;
+                                        transition: all 0.2s;
+                                        box-shadow: 2px 2px 0px 0px #333;
+                                    }
+                                    .btn:hover {
+                                        transform: translate(1px, 1px);
+                                        box-shadow: 1px 1px 0px 0px #333;
+                                    }
+                                    svg { margin-bottom: 1rem; display: inline-block; }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="container">
+                                    ${fuelIcon}
+                                    <h1>Session Paused</h1>
+                                    <p>Automatic payments failed due to insufficient ETH.<br/>Please top up your wallet to continue.</p>
+                                    <a href="${PROXY_BASE}" class="btn">CHECK WALLET</a>
+                                </div>
+                            </body>
+                        </html>`,
+                        { status: 402, headers: { "Content-Type": "text/html" } }
+                    );
+                }
+            } else if (isSwapInProgress(walletAddress)) {
+                // If swap IS running, let them through (grace period logic handles this, but doubling down)
+                console.log(`[Agent: Proxy] Swap pending - allowing temporary access`);
+            } else {
+                return new NextResponse(
+                    `<html>
+                            <head>
+                                <title>EconWall - Paused</title>
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet">
+                                <style>
+                                    body {
+                                        background-color: #000000;
+                                        color: #ffffff;
+                                        font-family: 'Geist Mono', monospace;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        height: 100vh;
+                                        margin: 0;
+                                        text-transform: uppercase;
+                                    }
+                                    .container {
+                                        border: 1px solid #333;
+                                        padding: 2.5rem;
+                                        max-width: 420px;
+                                        text-align: center;
+                                        background: #000;
+                                        box-shadow: 4px 4px 0px 0px #333; /* Hard shadow match */
+                                    }
+                                    h1 { font-size: 1.25rem; font-weight: 700; margin: 1.5rem 0 1rem; letter-spacing: 0.05em; }
+                                    p { color: #888; font-size: 0.875rem; margin-bottom: 2rem; line-height: 1.6; text-transform: none; }
+                                    .btn {
+                                        display: inline-block;
+                                        background-color: #fff;
+                                        color: #000;
+                                        padding: 12px 24px;
+                                        text-decoration: none;
+                                        font-size: 0.875rem;
+                                        font-weight: 600;
+                                        border: 1px solid #fff;
+                                        transition: all 0.2s;
+                                        box-shadow: 2px 2px 0px 0px #333;
+                                    }
+                                    .btn:hover {
+                                        transform: translate(1px, 1px);
+                                        box-shadow: 1px 1px 0px 0px #333;
+                                    }
+                                    svg { margin-bottom: 1rem; display: inline-block; }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="container">
+                                    ${fuelIcon}
+                                    <h1>Session Paused</h1>
+                                    <p>Automatic payments failed due to insufficient ETH.<br/>Please top up your wallet to continue.</p>
+                                    <a href="${PROXY_BASE}" class="btn">CHECK WALLET</a>
+                                </div>
+                            </body>
+                        </html>`,
+                    { status: 402, headers: { "Content-Type": "text/html" } }
+                );
+            }
         }
 
         const clickCount = incrementClicks(walletAddress);
@@ -426,78 +568,7 @@ export async function GET(req: NextRequest) {
             // -------------------------------------------------------------
             // DATA FETCHING FOR UI (Fee Slab, Balance)
             // -------------------------------------------------------------
-            let clientStats = {
-                swapsLast10Min: "0",
-                multiplier: "1",
-                totalSwaps: "0",
-                currentFee: "0.01",
-                ethBalance: "0",
-                ewtBalance: "0",
-                clicksTowardsBatch: "0" // NEW: Track progress to next swap
-            };
-
-            if (walletAddress) {
-                try {
-                    const poolId = getPoolId();
-
-                    // GET CLICK COUNT directly from session memory
-                    const currentClicks = getClickCount(walletAddress);
-                    clientStats.clicksTowardsBatch = currentClicks.toString();
-
-                    // INFERRED STATS (Server-Side Tracking)
-                    // Since the hook attributes swaps to the Router, we infer activity from local click/batch data
-                    const batchThreshold = getBatchThreshold();
-
-                    // Total batches triggered = Floor(clicks / threshold)
-                    // But we want "Total Swaps" effectively. 
-                    // Let's assume 1 Batch = 1 Swap for the visualizer.
-                    const inferredSwaps = Math.floor(currentClicks / batchThreshold);
-
-                    clientStats.swapsLast10Min = inferredSwaps.toString();
-
-                    // Calculate Multiplier locally (matching SurgeHook logic)
-                    let localMult = "1";
-                    if (inferredSwaps >= 4) localMult = "3";
-                    if (inferredSwaps >= 7) localMult = "6";
-                    if (inferredSwaps >= 10) localMult = "10";
-                    clientStats.multiplier = localMult;
-
-                    // Fetch Balances (Actual On-Chain Data)
-                    const results = await Promise.allSettled([
-                        publicClient.getBalance({
-                            address: walletAddress as `0x${string}`
-                        }),
-                        publicClient.readContract({
-                            address: EWT_ADDRESS,
-                            abi: ERC20_ABI,
-                            functionName: "balanceOf",
-                            args: [walletAddress as `0x${string}`],
-                        }),
-                        // Still fetch current base fee (Global)
-                        publicClient.readContract({
-                            address: SURGE_HOOK_ADDRESS,
-                            abi: SURGE_HOOK_ABI,
-                            functionName: "getCurrentFee",
-                            args: [poolId, walletAddress as `0x${string}`],
-                        })
-                    ]);
-
-                    if (results[0].status === "fulfilled") {
-                        clientStats.ethBalance = Number(formatEther(results[0].value)).toFixed(4);
-                    }
-                    if (results[1].status === "fulfilled") {
-                        clientStats.ewtBalance = Number(formatEther(results[1].value)).toFixed(6);
-                    }
-                    if (results[2].status === "fulfilled") {
-                        // Base Fee from Contract
-                        const feePips = Number(results[2].value);
-                        clientStats.currentFee = (feePips / 10000).toFixed(4);
-                    }
-
-                } catch (e) {
-                    console.warn("[Agent: Proxy] Failed to fetch live stats for browser UI:", e);
-                }
-            }
+            const clientStats = await getClientStats(walletAddress || "", privyUserId);
 
             // -------------------------------------------------------------
             // INJECTION
@@ -611,7 +682,8 @@ export async function GET(req: NextRequest) {
     var closeBtn = document.getElementById('econwall-popup-close');
     
     if (statsBtn && popup && closeBtn) {
-        statsBtn.onclick = function() { 
+        statsBtn.onclick = async function() { 
+            await loadStats(); // Fetch stats on click
             popup.style.display = 'flex'; 
             popup.classList.add('econ-backdrop-enter');
             container.classList.add('econ-popup-enter');
@@ -623,6 +695,28 @@ export async function GET(req: NextRequest) {
         popup.onclick = function(e) {
             if (e.target === popup) popup.style.display = 'none';
         }
+    }
+
+    async function loadStats() {
+        try {
+            var res = await fetch(PROXY_ORIGIN + '/api/proxy?mode=stats');
+            if(res.ok) {
+                var newStats = await res.json();
+                window.ECONWALL_STATS = newStats;
+                
+                // Update Text Elements
+                var set = (id, val) => { var e = document.getElementById(id); if(e) e.innerText = val; };
+                set('econ-swap-count', newStats.swapsLast10Min);
+                set('econ-fee', newStats.currentFee);
+                set('econ-multiplier', newStats.multiplier);
+                set('econ-eth-balance', newStats.ethBalance);
+                set('econ-ewt-balance', newStats.ewtBalance);
+                set('econ-batch', newStats.clicksTowardsBatch);
+                
+                // Update Chart coloring based on new multiplier
+                initChart();
+            }
+        } catch(e) {}
     }
 
     function initChart() {
@@ -650,10 +744,6 @@ export async function GET(req: NextRequest) {
             var {ctx, chartArea} = chart;
             if (!chartArea) return null;
             
-            // 4 Points = 3 Segments? No, usually 4 distinct regions roughly center-aligned on ticks.
-            // Ticks at: 0%, 33%, 66%, 100% of width.
-            // Boundaries roughly at: 16.5%, 50%, 83.5%
-            
             var gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
             
             // Colors
@@ -669,16 +759,12 @@ export async function GET(req: NextRequest) {
             var c2 = activeTier === 2 ? activeColor : dullColor;
             var c3 = activeTier === 3 ? activeColor : dullColor;
 
-            // Sharp stops for distinct vertical zones
             gradient.addColorStop(0, c0);
             gradient.addColorStop(0.165, c0);
-            
             gradient.addColorStop(0.165, c1);
             gradient.addColorStop(0.50, c1);
-            
             gradient.addColorStop(0.50, c2);
             gradient.addColorStop(0.835, c2);
-            
             gradient.addColorStop(0.835, c3);
             gradient.addColorStop(1, c3);
             
@@ -686,7 +772,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Line Stroke Gradient
-        var strokeGradient = ctx.createLinearGradient(0, 0, 300, 0); // Approximate width
+        var strokeGradient = ctx.createLinearGradient(0, 0, 300, 0); 
         strokeGradient.addColorStop(0, '#4ade80');
         strokeGradient.addColorStop(0.5, '#fbbf24');
         strokeGradient.addColorStop(1, '#ef4444');
@@ -702,17 +788,21 @@ export async function GET(req: NextRequest) {
                         borderColor: strokeGradient,
                         borderWidth: 3,
                         tension: 0.4,
-                        
-                        // AREA FILL CONFIG
                         fill: true,
                         backgroundColor: function(context) {
                             return getZoneGradient(context);
                         },
-                        
-                        pointBackgroundColor: '#000',
-                        pointBorderColor: '#fff',
+                        // DYNAMIC POINT STYLING
+                        pointBackgroundColor: function(context) {
+                            return context.dataIndex === activeTier ? '#ffffff' : '#000000';
+                        },
+                        pointBorderColor: function(context) {
+                            return context.dataIndex === activeTier ? '#ffffff' : '#ffffff';
+                        },
                         pointBorderWidth: 2,
-                        pointRadius: 6,
+                        pointRadius: function(context) {
+                            return context.dataIndex === activeTier ? 8 : 5;
+                        },
                         pointHoverRadius: 9,
                         pointHoverBackgroundColor: '#fff',
                         pointHoverBorderColor: '#000'
@@ -742,15 +832,10 @@ export async function GET(req: NextRequest) {
                             title: function(items) { return tierLabels[items[0].dataIndex]; },
                             label: function(item) {
                                 var idx = item.dataIndex;
-                                var lines = [
+                                return [
                                     'Multiplier: ' + multipliers[idx] + 'x',
                                     'Activity:   ' + descriptions[idx]
                                 ];
-                                if (idx === activeTier) {
-                                    lines.push('');
-                                    lines.push('📍 CURRENT STATUS');
-                                }
-                                return lines;
                             }
                         }
                     }
@@ -778,6 +863,8 @@ export async function GET(req: NextRequest) {
             }
         });
     }
+
+
 
 })();
 </script>
@@ -811,7 +898,7 @@ export async function GET(req: NextRequest) {
         <h2 style="color:#fff;margin:0 0 4px;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Session Activity</h2>
         <div style="color:#666;font-size:11px;margin-bottom:24px;display:flex;justify-content:space-between;">
             <span>LIVE ON-CHAIN METRICS</span>
-            <span>SWAPS: <script>document.write(window.ECONWALL_STATS.swapsLast10Min)</script></span>
+            <span>SWAPS: <span id="econ-swap-count">${clientStats.swapsLast10Min}</span></span>
         </div>
         
         <div style="margin-bottom:24px;height:160px;">
@@ -821,22 +908,22 @@ export async function GET(req: NextRequest) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;color:#888;">
             <div style="border:1px solid #222;padding:12px;border-radius:12px;background:#0a0a0a;">
                 <div style="margin-bottom:6px;color:#555;font-size:10px;">SWAP FEE</div>
-                <div style="color:#fff;font-size:16px;font-weight:600;"><script>document.write(window.ECONWALL_STATS.currentFee)</script>%</div>
+                <div style="color:#fff;font-size:16px;font-weight:600;"><span id="econ-fee">${clientStats.currentFee}</span>%</div>
             </div>
             <div style="border:1px solid #222;padding:12px;border-radius:12px;background:#0a0a0a;">
                 <div style="margin-bottom:6px;color:#555;font-size:10px;">MULTIPLIER</div>
                 <div style="color:${clientStats.multiplier === '1' ? '#4ade80' :
                     clientStats.multiplier === '3' ? '#fbbf24' :
                         clientStats.multiplier === '6' ? '#f97316' : '#ef4444'
-                };font-size:16px;font-weight:600;"><script>document.write(window.ECONWALL_STATS.multiplier)</script>x</div>
+                };font-size:16px;font-weight:600;"><span id="econ-multiplier">${clientStats.multiplier}</span>x</div>
             </div>
             <div style="border:1px solid #222;padding:12px;grid-column:span 2;border-radius:12px;background:#0a0a0a;">
                 <div style="margin-bottom:6px;color:#555;font-size:10px;">WALLET BALANCE</div>
                 <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span style="color:#fff;font-weight:500;"><script>document.write(window.ECONWALL_STATS.ethBalance)</script> ETH</span>
+                    <span style="color:#fff;font-weight:500;"><span id="econ-eth-balance">${clientStats.ethBalance}</span> ETH</span>
                     <div style="text-align:right;">
-                        <span style="color:#4ade80;font-weight:500;background:rgba(74,222,128,0.1);padding:4px 8px;border-radius:6px;display:inline-block;"><script>document.write(window.ECONWALL_STATS.ewtBalance)</script> EWT</span>
-                        <div style="font-size:9px;color:#555;margin-top:2px;">BATCH: <script>document.write(window.ECONWALL_STATS.clicksTowardsBatch)</script>/10</div>
+                        <span style="color:#4ade80;font-weight:500;background:rgba(74,222,128,0.1);padding:4px 8px;border-radius:6px;display:inline-block;"><span id="econ-ewt-balance">${clientStats.ewtBalance}</span> EWT</span>
+                        <div style="font-size:9px;color:#555;margin-top:2px;">BATCH: <span id="econ-batch">${clientStats.clicksTowardsBatch}</span>/10</div>
                     </div>
                 </div>
             </div>
