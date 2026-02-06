@@ -872,68 +872,317 @@ export async function GET(req: NextRequest) {
 `;
 
             // Obfuscated display (hostname only)
+            // Obfuscated display (hostname only)
             const displayUrl = targetUrl.hostname;
 
-            // Browser bar UI with Stats Button
             const browserBar = `
-<div id="econwall-browser" style="position:fixed;top:0;left:0;right:0;background:hsl(224,71%,4%);border-bottom:1px solid hsl(215,20%,17%);padding:12px 24px;font-family:system-ui,-apple-system,sans-serif;z-index:99999;display:flex;align-items:center;gap:16px;">
-    <span style="color:hsl(0,0%,98%);font-weight:600;font-size:14px;letter-spacing:-0.02em;">ECONWALL</span>
-    <span style="color:hsl(215,14%,34%);font-size:12px;">BROWSER</span>
-    <form id="econwall-nav-form" style="flex:1;display:flex;gap:8px;margin-left:16px;">
-        <input id="url-input" type="text" value="${displayUrl}" placeholder="Enter URL..." style="flex:1;padding:10px 16px;border-radius:12px;border:1px solid hsl(215,20%,17%);background:hsl(224,71%,4%);color:hsl(0,0%,98%);font-size:14px;font-family:monospace;outline:none;"/>
-        <button type="submit" style="padding:10px 20px;background:hsl(0,0%,98%);color:hsl(224,71%,4%);border:none;border-radius:12px;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;cursor:pointer;">Browse</button>
-    </form>
-    
-    <!-- STATS BUTTON -->
-    <button id="econwall-stats-btn" style="background:none;border:none;padding:8px;cursor:pointer;color:hsl(215,14%,54%);display:flex;align-items:center;justify-content:center;transition:all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);" onmouseover="this.style.color='white';this.style.transform='scale(1.1)'" onmouseout="this.style.color='hsl(215,14%,54%)';this.style.transform='scale(1)'">
-        ${chartIcon}
-    </button>
-    
-    <a id="econwall-exit" href="#" style="color:hsl(215,14%,34%);text-decoration:none;font-size:12px;font-weight:500;">Exit</a>
-</div>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap');
 
-<!-- STATS POPUP -->
-<div id="econwall-stats-popup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:100000;align-items:center;justify-content:center;font-family:'Geist Mono',monospace;">
-    <div id="econwall-popup-container" style="background:#000;border:1px solid #333;padding:24px;width:340px;box-shadow:0 20px 50px -12px rgba(0,0,0,0.5);position:relative;border-radius:16px;">
-        <button id="econwall-popup-close" style="position:absolute;top:16px;right:16px;background:none;border:none;color:#555;font-size:20px;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='#555'">&times;</button>
-        <h2 style="color:#fff;margin:0 0 4px;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Session Activity</h2>
-        <div style="color:#666;font-size:11px;margin-bottom:24px;display:flex;justify-content:space-between;">
-            <span>LIVE ON-CHAIN METRICS</span>
-            <span>SWAPS: <span id="econ-swap-count">${clientStats.swapsLast10Min}</span></span>
+    /* Design System Tokens (Dark Mode) */
+    #econwall-wrapper {
+        font-family: 'Geist Mono', monospace;
+        --econ-bg: #09090b;       /* Darker background */
+        --econ-card: #18181b;     /* Card background */
+        --econ-border: #27272a;   /* Border color */
+        --econ-text: #fafafa;     /* Foreground */
+        --econ-muted: #a1a1aa;    /* Muted foreground */
+        --econ-input: #27272a;    /* Input background */
+        
+        --econ-shadow: 4px 4px 0px 0px rgba(0,0,0,0.5);
+        --econ-shadow-hover: 6px 6px 0px 0px rgba(0,0,0,0.6);
+        --econ-radius: 12px;
+    }
+
+    /* Menu Button (Floating Toggle) */
+    #econwall-menu-btn {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 100001;
+        width: 44px;
+        height: 44px;
+        background: var(--econ-bg);
+        border: 2px solid var(--econ-border);
+        border-radius: var(--econ-radius);
+        color: var(--econ-text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: var(--econ-shadow);
+    }
+    #econwall-menu-btn:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: var(--econ-shadow-hover);
+        border-color: var(--econ-text);
+    }
+    #econwall-menu-btn:active {
+        transform: translate(0, 0);
+        box-shadow: 2px 2px 0px 0px rgba(0,0,0,0.5);
+    }
+    #econwall-menu-btn.active {
+        background: var(--econ-text);
+        color: var(--econ-bg);
+        border-color: var(--econ-text);
+        transform: rotate(90deg);
+        box-shadow: 0 0 0 0 transparent;
+    }
+
+    /* Collapsible Bar */
+    #econwall-browser {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: var(--econ-bg);
+        border-bottom: 2px solid var(--econ-border);
+        height: 72px; /* Reduced Height */
+        padding: 0 90px 0 24px;
+        font-family: 'Geist Mono', monospace;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        
+        transform: translateY(-100%);
+        transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 20px 50px -10px rgba(0,0,0,0.8);
+    }
+    #econwall-browser.visible {
+        transform: translateY(0);
+    }
+
+    /* Elements */
+    .econ-logo { 
+        color: var(--econ-text); 
+        font-weight: 800; 
+        font-size: 16px; 
+        letter-spacing: -0.04em;
+        text-transform: uppercase;
+    }
+    .econ-badge { 
+        color: var(--econ-bg); 
+        font-size: 10px; 
+        font-weight: 700; 
+        background: var(--econ-text); 
+        padding: 3px 6px; 
+        border-radius: 4px; 
+    }
+    
+    #econwall-nav-form { flex: 1; display: flex; gap: 10px; height: 40px; }
+    
+    #url-input {
+        flex: 1;
+        padding: 0 16px;
+        border-radius: var(--econ-radius);
+        border: 2px solid var(--econ-border);
+        background: var(--econ-input);
+        color: var(--econ-text);
+        font-size: 14px;
+        font-family: 'Geist Mono', monospace;
+        outline: none;
+        box-shadow: var(--econ-shadow);
+        transition: all 0.2s;
+    }
+    #url-input:focus { 
+        border-color: var(--econ-text); 
+        transform: translate(-1px, -1px);
+        box-shadow: var(--econ-shadow-hover);
+    }
+    
+    .econ-btn {
+        height: 100%;
+        padding: 0 24px;
+        background: var(--econ-text);
+        color: var(--econ-bg);
+        border: 2px solid var(--econ-text);
+        border-radius: var(--econ-radius);
+        font-weight: 700;
+        font-size: 13px;
+        text-transform: uppercase;
+        cursor: pointer;
+        box-shadow: var(--econ-shadow);
+        transition: all 0.2s;
+    }
+    .econ-btn:hover { 
+        transform: translate(-2px, -2px);
+        box-shadow: var(--econ-shadow-hover);
+    }
+    .econ-btn:active {
+        transform: translate(0, 0);
+        box-shadow: 2px 2px 0px 0px rgba(0,0,0,0.5);
+    }
+
+    /* Stats Button */
+    #econwall-stats-btn {
+        height: 40px;
+        width: 40px;
+        background: var(--econ-card); 
+        border: 2px solid var(--econ-border);
+        padding: 0; 
+        cursor: pointer;
+        color: var(--econ-muted); 
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.2s ease;
+        border-radius: var(--econ-radius);
+        box-shadow: var(--econ-shadow);
+    }
+    #econwall-stats-btn:hover { 
+        background: var(--econ-bg);
+        color: var(--econ-text); 
+        border-color: var(--econ-text);
+        transform: translate(-2px, -2px);
+        box-shadow: var(--econ-shadow-hover);
+    }
+    
+    #econwall-exit {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 20px;
+        color: var(--econ-muted); 
+        text-decoration: none;
+        font-size: 11px;
+        font-weight: 700;
+        background: var(--econ-card);
+        border-radius: var(--econ-radius);
+        border: 2px solid var(--econ-border);
+        box-shadow: var(--econ-shadow);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        transition: all 0.2s;
+    }
+    #econwall-exit:hover { 
+        background: var(--econ-text); 
+        border-color: var(--econ-text); 
+        color: var(--econ-bg);
+        transform: translate(-2px, -2px);
+        box-shadow: var(--econ-shadow-hover);
+    }
+
+</style>
+
+<div id="econwall-wrapper">
+    <!-- MENU TRIGGER (Top Right) -->
+    <button id="econwall-menu-btn" title="Toggle Browser">
+        <!-- SVG Icon handled by JS -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" x2="21" y1="12" y2="12"></line>
+            <line x1="3" x2="21" y1="6" y2="6"></line>
+            <line x1="3" x2="21" y1="18" y2="18"></line>
+        </svg>
+    </button>
+
+    <!-- COLLAPSIBLE BAR -->
+    <div id="econwall-browser">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span class="econ-logo">ECONWALL</span>
+            <span class="econ-badge">PROXY</span>
         </div>
         
-        <div style="margin-bottom:24px;height:160px;">
+        <form id="econwall-nav-form">
+            <input id="url-input" type="text" value="${displayUrl}" placeholder="Enter URL..." autocomplete="off" />
+            <button type="submit" class="econ-btn">GO</button>
+        </form>
+        
+        <!-- Action Group -->
+        <button id="econwall-stats-btn" title="View Session Stats">
+            ${chartIcon}
+        </button>
+        
+        <a id="econwall-exit" href="#" title="Exit Browser Session">EXIT</a>
+    </div>
+</div>
+
+<!-- STATS POPUP (Styled Container) -->
+<div id="econwall-stats-popup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:100000;align-items:center;justify-content:center;font-family:'Geist Mono',monospace;">
+    <div id="econwall-popup-container" style="background:#09090b;border:2px solid #27272a;padding:32px;width:380px;box-shadow:8px 8px 0px 0px #000;position:relative;border-radius:16px;">
+        <button id="econwall-popup-close" style="position:absolute;top:20px;right:20px;background:none;border:none;color:#555;font-size:24px;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='#555'">&times;</button>
+        
+        <div style="margin-bottom:24px;">
+            <h2 style="color:#fff;margin:0 0 4px;font-size:16px;text-transform:uppercase;font-weight:800;letter-spacing:-0.02em;">Session Activity</h2>
+            <div style="color:#a1a1aa;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
+                <span>Live On-Chain Metrics</span>
+                <span style="color:#fff;font-weight:600;font-size:11px;background:#27272a;padding:2px 8px;border-radius:6px;border:1px solid #3f3f46;">SWAPS: <span id="econ-swap-count">${clientStats.swapsLast10Min}</span></span>
+            </div>
+        </div>
+        
+        <div style="margin-bottom:32px;height:180px;background:#18181b;border-radius:12px;border:1px solid #27272a;padding:16px;">
             <canvas id="econwall-chart"></canvas>
         </div>
         
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;color:#888;">
-            <div style="border:1px solid #222;padding:12px;border-radius:12px;background:#0a0a0a;">
-                <div style="margin-bottom:6px;color:#555;font-size:10px;">SWAP FEE</div>
-                <div style="color:#fff;font-size:16px;font-weight:600;"><span id="econ-fee">${clientStats.currentFee}</span>%</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:12px;">
+            <div style="border:1px solid #27272a;padding:16px;border-radius:12px;background:#18181b;">
+                <div style="margin-bottom:8px;color:#71717a;font-size:10px;font-weight:700;text-transform:uppercase;">Swap Fee</div>
+                <div style="color:#fff;font-size:18px;font-weight:700;"><span id="econ-fee">${clientStats.currentFee}</span>%</div>
             </div>
-            <div style="border:1px solid #222;padding:12px;border-radius:12px;background:#0a0a0a;">
-                <div style="margin-bottom:6px;color:#555;font-size:10px;">MULTIPLIER</div>
+            <div style="border:1px solid #27272a;padding:16px;border-radius:12px;background:#18181b;">
+                <div style="margin-bottom:8px;color:#71717a;font-size:10px;font-weight:700;text-transform:uppercase;">Multiplier</div>
                 <div style="color:${clientStats.multiplier === '1' ? '#4ade80' :
                     clientStats.multiplier === '3' ? '#fbbf24' :
                         clientStats.multiplier === '6' ? '#f97316' : '#ef4444'
-                };font-size:16px;font-weight:600;"><span id="econ-multiplier">${clientStats.multiplier}</span>x</div>
+                };font-size:18px;font-weight:700;"><span id="econ-multiplier">${clientStats.multiplier}</span>x</div>
             </div>
-            <div style="border:1px solid #222;padding:12px;grid-column:span 2;border-radius:12px;background:#0a0a0a;">
-                <div style="margin-bottom:6px;color:#555;font-size:10px;">WALLET BALANCE</div>
+            <div style="border:1px solid #27272a;padding:16px;grid-column:span 2;border-radius:12px;background:#18181b;">
+                <div style="margin-bottom:8px;color:#71717a;font-size:10px;font-weight:700;text-transform:uppercase;">Wallet Balance</div>
                 <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span style="color:#fff;font-weight:500;"><span id="econ-eth-balance">${clientStats.ethBalance}</span> ETH</span>
+                    <span style="color:#fff;font-weight:600;"><span id="econ-eth-balance">${clientStats.ethBalance}</span> ETH</span>
                     <div style="text-align:right;">
-                        <span style="color:#4ade80;font-weight:500;background:rgba(74,222,128,0.1);padding:4px 8px;border-radius:6px;display:inline-block;"><span id="econ-ewt-balance">${clientStats.ewtBalance}</span> EWT</span>
-                        <div style="font-size:9px;color:#555;margin-top:2px;">BATCH: <span id="econ-batch">${clientStats.clicksTowardsBatch}</span>/10</div>
+                        <span style="color:#18181b;font-weight:700;background:#4ade80;padding:4px 8px;border-radius:6px;display:inline-block;font-size:11px;">
+                            <span id="econ-ewt-balance">${clientStats.ewtBalance}</span> EWT
+                        </span>
                     </div>
                 </div>
             </div>
         </div>
+        
+        <div style="margin-top:24px;text-align:center;font-size:11px;color:#52525b;display:flex;justify-content:center;gap:8px;">
+           <span>BATCH PROGRESS</span>
+           <span style="color:#a1a1aa;font-weight:600;"><span id="econ-batch">${clientStats.clicksTowardsBatch}</span>/10</span>
+        </div>
     </div>
 </div>
 
-<div style="height:56px;"></div>
-<script>document.getElementById('econwall-exit').onclick=function(e){e.preventDefault();window.location.href=window.location.origin+'/';};</script>
+<div style="height:0px;"></div>
+<script>
+    document.getElementById('econwall-exit').onclick=function(e){e.preventDefault();window.location.href=window.location.origin+'/';};
+    
+    // TOGGLE LOGIC
+    var menuBtn = document.getElementById('econwall-menu-btn');
+    var browserBar = document.getElementById('econwall-browser');
+    
+    // Toggle on Click
+    menuBtn.onclick = function() {
+        var isVisible = browserBar.classList.contains('visible');
+        if (isVisible) {
+            browserBar.classList.remove('visible');
+            menuBtn.classList.remove('active');
+            menuBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="12" y2="12"></line><line x1="3" x2="21" y1="6" y2="6"></line><line x1="3" x2="21" y1="18" y2="18"></line></svg>';
+        } else {
+            browserBar.classList.add('visible');
+            menuBtn.classList.add('active');
+            menuBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>';
+            // Auto-focus input
+            setTimeout(function(){ document.getElementById('url-input').focus(); }, 150);
+        }
+    };
+    
+    // Auto-Close on Scroll (Optional UX)
+    /*
+    var lastScrollTop = 0;
+    window.addEventListener("scroll", function(){
+       var st = window.pageYOffset || document.documentElement.scrollTop;
+       if (st > lastScrollTop && st > 100){
+           // Scrolling Down - hide
+           if(browserBar.classList.contains('visible')) menuBtn.click();
+       }
+       lastScrollTop = st <= 0 ? 0 : st;
+    }, false);
+    */
+</script>
 `;
 
             // Inject browser bar after <body>

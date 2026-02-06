@@ -313,14 +313,20 @@ export async function POST(req: NextRequest) {
             // SUCCESS - Reset failures
             resetFailures(embeddedWalletAddress);
 
-            // Verify swap worked
-            const newEwtBalance = await getEwtBalance(embeddedWalletAddress);
+            // GRACE PERIOD: Poll for balance update (max 5 attempts, 1s interval)
+            let newEwtBalance = 0n;
+            for (let i = 0; i < 5; i++) {
+                console.log(`[Agent: Gateway] Verifying swap balance (Attempt ${i + 1}/5)...`);
+                newEwtBalance = await getEwtBalance(embeddedWalletAddress);
+                if (newEwtBalance > 0n) break;
+                await new Promise(r => setTimeout(r, 1000)); // Wait 1s
+            }
+
             if (newEwtBalance === 0n) {
-                // Swap succeeded but balance 0? Weird/Lag?
-                // Count this as failure too? Or grace?
+                console.warn(`[Agent: Gateway] Grace period expired. Balance still 0.`);
                 const failures = incrementFailures(embeddedWalletAddress);
                 return NextResponse.json(
-                    { error: "Swap verified but balance unavailable", retry: true, failures },
+                    { error: "Swap verified but balance unavailable (latency)", retry: true, failures },
                     { status: 429 }
                 );
             }
