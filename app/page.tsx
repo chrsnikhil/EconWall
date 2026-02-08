@@ -16,7 +16,7 @@ import { ServerWalletSidebar } from "@/components/server-wallet-sidebar";
 import Link from "next/link";
 import { resolveEnsWithCcip } from "@/lib/ccip-read";
 import { Hex } from "viem";
-import { Wallet } from "lucide-react";
+import { Wallet, X } from "lucide-react";
 
 type AppState = "IDLE" | "CHECKING" | "DENIED" | "BROWSER";
 
@@ -32,6 +32,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [registeredSites, setRegisteredSites] = useState<any[]>([]);
+  const [showFaq, setShowFaq] = useState(false);
 
   // Fetch registered sites
   useEffect(() => {
@@ -257,6 +258,12 @@ export default function Home() {
           )}
 
           <ConnectWallet />
+          <button
+            onClick={() => setShowFaq(true)}
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors ml-2"
+          >
+            FAQ
+          </button>
           <ThemeToggle />
         </div>
       </header>
@@ -508,6 +515,77 @@ export default function Home() {
           walletAddress={serverWalletAddress || ''}
           privyUserId={privyUserId}
         />
+      )}
+
+      {/* FAQ Modal */}
+      {showFaq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300" onClick={() => setShowFaq(false)}>
+          <div
+            className="bg-background border border-border rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300 relative font-mono"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 right-0 p-4 flex justify-end bg-background/90 backdrop-blur-sm z-10 border-b border-border/40">
+              <button
+                onClick={() => setShowFaq(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Close FAQ"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-8 pb-10 space-y-8">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></svg>
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight">Frequently Asked Questions</h2>
+                <p className="text-muted-foreground text-sm">How EconWall works under the hood.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-5 rounded-xl bg-card/50 border border-border/50 hover:border-border transition-colors">
+                  <h3 className="text-base font-semibold text-foreground mb-3 flex items-start gap-2">
+                    <span className="text-primary mt-0.5">01.</span>
+                    "Don't normal people have to pay ETH to browse?"
+                  </h3>
+                  <div className="text-muted-foreground text-sm leading-relaxed space-y-3 pl-7">
+                    <p><strong className="text-foreground">No.</strong> Website owners fund embedded wallets with small amounts of ETH. Users browse for free.</p>
+                    <p><strong>The math:</strong> A normal browsing session (20 clicks) costs ~5-6 cents in swaps. Website owners pay for this—it's 10x-100x cheaper than their Cloudflare bill ($5k-$50k/month).</p>
+                    <p>For users who don't have an embedded wallet, the cost is negligible: they pay a few cents per session. Most websites fund the wallets anyway because it's cheaper than DDoS protection.</p>
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-xl bg-card/50 border border-border/50 hover:border-border transition-colors">
+                  <h3 className="text-base font-semibold text-foreground mb-3 flex items-start gap-2">
+                    <span className="text-primary mt-0.5">02.</span>
+                    "Can botnets with 1000 wallets just bypass surge pricing?"
+                  </h3>
+                  <div className="text-muted-foreground text-sm leading-relaxed space-y-3 pl-7">
+                    <p><strong className="text-foreground">No.</strong> Three layers stop them:</p>
+                    <ul className="list-disc pl-4 space-y-2 marker:text-muted-foreground/50">
+                      <li><strong>First:</strong> Rolling encrypted URLs—each request gets a unique AES-encrypted path. Even with 1000 wallets, they can't guess the paths. They're hitting a moving target.</li>
+                      <li><strong>Second:</strong> Wallet creation rate-limiting—creating 1000 wallets triggers our detection. Takes hours to farm them, and by then we've blocked the pattern.</li>
+                      <li><strong>Third:</strong> Surge pricing escalates fast. By the 4th swap, fees multiply (3x, 6x, 10x). Sustaining a distributed attack across 1000 wallets costs $30k+/minute cost. Their ETH runs out. Botnets are free—they're not.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-xl bg-card/50 border border-border/50 hover:border-border transition-colors">
+                  <h3 className="text-base font-semibold text-foreground mb-3 flex items-start gap-2">
+                    <span className="text-primary mt-0.5">03.</span>
+                    "Can't they just DDoS the Gateway?"
+                  </h3>
+                  <div className="text-muted-foreground text-sm leading-relaxed space-y-3 pl-7">
+                    <p><strong className="text-foreground">No.</strong> The Gateway itself is hidden behind an ENS domain.</p>
+                    <p>When the browser needs to contact the Gateway, it doesn't connect to a public IP. It resolves <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">gateway.econwall.eth</code>—which also uses CCIP-Read to hide the real location.</p>
+                    <p>You can't DDoS what you can't find. The Gateway's IP is cryptographically hidden, just like the origin server. If attackers somehow find one Gateway node, it's stateless and distributed—they can spin up more nodes instantly.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Footer */}
