@@ -1,9 +1,22 @@
 # EconWall
 
 **The Web3-Native Cloudflare.**
-EconWall is a decentralized proxy and security layer that protects websites / API's from DDoS attacks and unauthorized access by gating content behind a crypto-economic firewall.
 
-Instead of relying on centralized IP blocking, EconWall uses **Dynamic Pricing Schemes** (via Uniswap V4 Hooks) to make attacks prohibitively expensive while keeping access negligible for legitimate users.
+### The Problem: Web2 Fragility
+Modern web security relies on centralized gatekeepers (Cloudflare, AWS).
+*   **Single Point of Failure:** If AWS goes down, half the internet breaks.
+*   **Censorship Risk:** Centralized entities can de-platform sites at will.
+*   **IP Blocking is Flawed:** Attackers can rotate IPs infinitely. It's a game of Whac-A-Mole.
+
+### The Solution: Economic Friction
+**EconWall** replaces fragile IP blocking with an **Economic Firewall**.
+Attackers have infinite IPs, but they have **finite money**.
+
+By gating every request behind a micro-payment that ***surges*** during high traffic (via **Uniswap V4 Hooks**), we make DDoS attacks mathematically unaffordable ($1,000+ cost) while legitimate users seamlessly browse for pennies.
+
+*   **Unstoppable Security:** Logic runs entirely on-chain (Unichain).
+*   **Privacy Preserved:** No IP tracking. Just cryptographic signatures.
+*   **Truly Web3:** Pay-per-request, handled automatically by an embedded Agent Wallet.
 
 ---
 
@@ -60,6 +73,17 @@ EconWall integrates with ENS (Ethereum Name Service) using **CCIP-Read (EIP-3668
 
 ![ENS Gateway Architecture](public/assets/diagrams/ens_gateway_architecture_1770446841014.png)
 
+## Uniswap Contracts (Unichain Sepolia)
+
+| Contract | Address |
+| :--- | :--- |
+| **Pool Manager** | [0x00b0...62ac](https://unichain-sepolia.blockscout.com/address/0x00b036b58a818b1bc34d502d3fe730db729e62ac) |
+| **Universal Router** | [0xf705...be5d](https://unichain-sepolia.blockscout.com/address/0xf70536b3bcc1bd1a972dc186a2cf84cc6da6be5d) |
+| **Surge Hook** | [0xbB96...40c0](https://unichain-sepolia.blockscout.com/address/0xbB9620C96A409d321552Cff9F8c1397b879440c0) |
+| **Custom Token (EWT)** | [0x312C...B043](https://unichain-sepolia.blockscout.com/address/0x312CF8c8F041df4444A19e0525452aE362F3B043) |
+| **Position Manager** | [0xf969...d664](https://unichain-sepolia.blockscout.com/address/0xf969aee60879c54baaed9f3ed26147db216fd664) |
+| **Quoter** | [0x56dc...4472](https://unichain-sepolia.blockscout.com/address/0x56dcd40a3f2d466f48e7f48bdbe5cc9b92ae4472) |
+
 ---
 
 ## Key Features
@@ -71,28 +95,3 @@ EconWall integrates with ENS (Ethereum Name Service) using **CCIP-Read (EIP-3668
 
 ---
 
-## Getting Started
-
-### Prerequisites
-- Node.js 18+
-- Foundry (for smart contracts)
-
-### Installation
-
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-2. Set up environment variables:
-   ```bash
-   cp .env.example .env.local
-   # Add your Privy App ID, Unichain RPC, etc.
-   ```
-
-3. Run the development server:
-   ```bash
-   npm run dev
-   ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to launch the EconWall Portal.
