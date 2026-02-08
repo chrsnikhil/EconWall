@@ -3,9 +3,9 @@
 **The Web3-Native Cloudflare.**
 
 ### The Problem: Web2 Fragility
-Modern web security relies on centralized gatekeepers (Cloudflare, AWS).
-*   **Single Point of Failure:** If AWS goes down, half the internet breaks.
-*   **Censorship Risk:** Centralized entities can de-platform sites at will.
+Modern web security relies on centralized gatekeepers like Cloudflare.
+*   **Censorship Risk:** Centralized entities can de-platform sites based on politics or jurisdiction.
+*   **Unaffordable at Scale:** Enterprise-grade DDoS protection is prohibitively expensive for small dApps.
 *   **IP Blocking is Flawed:** Attackers can rotate IPs infinitely. It's a game of Whac-A-Mole.
 
 ### The Solution: Economic Friction
