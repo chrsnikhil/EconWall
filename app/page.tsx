@@ -287,9 +287,24 @@ export default function Home() {
               </div>
               <div className="text-center space-y-2">
                 <h2 className="text-lg font-semibold text-foreground">Portal Locked</h2>
-                <p className="text-sm text-muted-foreground">
-                  Connect your wallet to continue
+                <p className="text-sm text-muted-foreground mb-4">
+                  Complete setup to continue
                 </p>
+
+                <div className="text-left bg-muted/50 p-4 rounded-lg border border-border/50 text-sm space-y-3 mb-6">
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-background border border-border text-[10px] font-mono font-bold">1</span>
+                    <span>Connect MetaMask</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-background border border-border text-[10px] font-mono font-bold">2</span>
+                    <span>Create Embedded Wallet</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-background border border-border text-[10px] font-mono font-bold">3</span>
+                    <span>Grant Server Access</span>
+                  </div>
+                </div>
               </div>
               <ConnectWallet />
             </CardContent>

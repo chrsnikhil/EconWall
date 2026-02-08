@@ -1,0 +1,76 @@
+<svg width="1920" height="1080" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="white" />
+  
+  <!-- Header -->
+  <rect x="0" y="0" width="1920" height="80" fill="#2d3748" />
+  <text x="960" y="55" font-family="Arial, sans-serif" font-size="36" fill="white" text-anchor="middle" font-weight="bold">System Architecture: Anti-Abuse Economic Firewall</text>
+
+  <!-- Zone 1: Input Sources -->
+  <rect x="50" y="120" width="1820" height="350" rx="15" fill="#f7fafc" stroke="#cbd5e0" stroke-width="2" />
+  <text x="960" y="160" font-family="Arial, sans-serif" font-size="28" fill="#4a5568" text-anchor="middle" font-weight="bold">Zone 1: Input Data Sources</text>
+
+  <!-- Block A: Network Oracle -->
+  <rect x="150" y="200" width="700" height="220" rx="10" fill="white" stroke="#3182ce" stroke-width="4" />
+  <text x="500" y="240" font-family="Arial, sans-serif" font-size="24" fill="#2b6cb0" text-anchor="middle" font-weight="bold">Block A: Network Traffic Oracle</text>
+  <!-- Data Table A -->
+  <text x="200" y="280" font-family="Consolas, monospace" font-size="18" fill="#2d3748">Global Activity (1h Window):</text>
+  <text x="200" y="310" font-family="Consolas, monospace" font-size="16" fill="#4a5568">• 0-5 Swaps:     0.01%</text>
+  <text x="200" y="335" font-family="Consolas, monospace" font-size="16" fill="#4a5568">• 5-15 Swaps:    0.05%</text>
+  <text x="200" y="360" font-family="Consolas, monospace" font-size="16" fill="#4a5568">• ...</text>
+  <text x="200" y="385" font-family="Consolas, monospace" font-size="16" fill="#e53e3e" font-weight="bold">• 150+ Swaps:    25.00% (Max)</text>
+
+  <!-- Block B: User Tracker -->
+  <rect x="1070" y="200" width="700" height="220" rx="10" fill="white" stroke="#3182ce" stroke-width="4" />
+  <text x="1420" y="240" font-family="Arial, sans-serif" font-size="24" fill="#2b6cb0" text-anchor="middle" font-weight="bold">Block B: User Behavior Tracker</text>
+  <!-- Data Table B -->
+  <text x="1120" y="280" font-family="Consolas, monospace" font-size="18" fill="#2d3748">Personal Logic (5m Window):</text>
+  <text x="1120" y="310" font-family="Consolas, monospace" font-size="16" fill="#4a5568">• 1-2 Swaps:     1x (Normal)</text>
+  <text x="1120" y="335" font-family="Consolas, monospace" font-size="16" fill="#4a5568">• 3-4 Swaps:     3x</text>
+  <text x="1120" y="360" font-family="Consolas, monospace" font-size="16" fill="#4a5568">• 5-7 Swaps:     6x</text>
+  <text x="1120" y="385" font-family="Consolas, monospace" font-size="16" fill="#e53e3e" font-weight="bold">• 8+ Swaps:      10x (Abusive)</text>
+
+  <!-- Arrows Zone 1 -> Zone 2 -->
+  <path d="M 500 420 L 500 520 L 800 520 L 800 550" stroke="#718096" stroke-width="4" fill="none" marker-end="url(#arrow)" />
+  <path d="M 1420 420 L 1420 520 L 1120 520 L 1120 550" stroke="#718096" stroke-width="4" fill="none" marker-end="url(#arrow)" />
+
+  <!-- Zone 2: Processing Core -->
+  <rect x="50" y="550" width="1820" height="200" rx="15" fill="#ebf8ff" stroke="#63b3ed" stroke-width="2" />
+  <text x="960" y="590" font-family="Arial, sans-serif" font-size="28" fill="#2b6cb0" text-anchor="middle" font-weight="bold">Zone 2: Processing Core (Uniswap V4 Hook Engine)</text>
+  
+  <!-- Hexagon Shape -->
+  <polygon points="800,620 1120,620 1200,680 1120,740 800,740 720,680" fill="#ffffff" stroke="#d53f8c" stroke-width="6" />
+  <text x="960" y="665" font-family="Arial, sans-serif" font-size="24" fill="#d53f8c" text-anchor="middle" font-weight="bold">Dynamic Pricing Logic</text>
+  <text x="960" y="705" font-family="Consolas, monospace" font-size="22" fill="#2d3748" text-anchor="middle">Base Fee  X  Multiplier</text>
+
+  <!-- Arrows Zone 2 -> Zone 3 -->
+  <path d="M 960 740 L 960 780" stroke="#718096" stroke-width="4" fill="none" marker-end="url(#arrow)" />
+  <line x1="500" y1="780" x2="1420" y2="780" stroke="#718096" stroke-width="4" />
+  <line x1="500" y1="780" x2="500" y2="820" stroke="#718096" stroke-width="4" marker-end="url(#arrow)" />
+  <line x1="1420" y1="780" x2="1420" y2="820" stroke="#718096" stroke-width="4" marker-end="url(#arrow)" />
+
+  <!-- Zone 3: Scenarios -->
+  <rect x="50" y="800" width="1820" height="250" rx="15" fill="#fff5f5" stroke="#fc8181" stroke-width="2" />
+  <text x="960" y="840" font-family="Arial, sans-serif" font-size="28" fill="#c53030" text-anchor="middle" font-weight="bold">Zone 3: Execution Scenarios</text>
+
+  <!-- Scenario A -->
+  <rect x="150" y="860" width="700" height="160" rx="10" fill="#f0fff4" stroke="#48bb78" stroke-width="4" />
+  <text x="500" y="890" font-family="Arial, sans-serif" font-size="22" fill="#2f855a" text-anchor="middle" font-weight="bold">Scenario A: Daily User (Sustainable)</text>
+  <text x="200" y="925" font-family="Consolas, monospace" font-size="16" fill="#2d3748">Browsing: 4 Hours (50 Swaps)</text>
+  <text x="200" y="950" font-family="Consolas, monospace" font-size="16" fill="#2d3748">Base Fee: 0.05% | Multiplier: 1x</text>
+  <text x="500" y="990" font-family="Arial, sans-serif" font-size="28" fill="#2f855a" text-anchor="middle" font-weight="bold">Result: $0.06 (Negligible)</text>
+
+  <!-- Scenario B -->
+  <rect x="1070" y="860" width="700" height="160" rx="10" fill="#fff5f5" stroke="#e53e3e" stroke-width="4" />
+  <text x="1420" y="890" font-family="Arial, sans-serif" font-size="22" fill="#c53030" text-anchor="middle" font-weight="bold">Scenario B: Hacker (Unaffordable)</text>
+  <text x="1120" y="925" font-family="Consolas, monospace" font-size="16" fill="#2d3748">Attack: 10 Seconds (1000 Swaps)</text>
+  <text x="1120" y="950" font-family="Consolas, monospace" font-size="16" fill="#2d3748">Base Fee: 25% | Multiplier: 10x</text>
+  <text x="1420" y="990" font-family="Arial, sans-serif" font-size="28" fill="#c53030" text-anchor="middle" font-weight="bold">Result: $1,000.00 (Stop!)</text>
+
+  <!-- Definitions -->
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#718096" />
+    </marker>
+  </defs>
+</svg>

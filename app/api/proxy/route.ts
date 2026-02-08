@@ -332,9 +332,16 @@ export async function GET(req: NextRequest) {
                 <body>
                     <div class="container">
                         ${lockIcon}
-                        <h1>Access Denied</h1>
-                        <p>No valid session detected.<br/>This proxy URL is bound to a secure session.</p>
-                        <a href="${PROXY_BASE}" class="btn">AUTHENTICATE</a>
+                        <h1>Browser Locked</h1>
+                        <p>To access this secure proxy, please complete the following steps:</p>
+                        <div style="text-align: left; margin-bottom: 2rem; color: #888; font-size: 0.875rem; line-height: 1.6; text-transform: none; background: #111; padding: 1rem; border-radius: 8px; border: 1px solid #333;">
+                            <ol style="margin: 0; padding-left: 1.5rem; space-y: 0.5rem;">
+                                <li style="margin-bottom: 0.5rem;">Connect MetaMask</li>
+                                <li style="margin-bottom: 0.5rem;">Create Embedded Wallet in Sidebar</li>
+                                <li>Grant Server Access to Server Wallet</li>
+                            </ol>
+                        </div>
+                        <a href="${PROXY_BASE}" class="btn">CONNECT TO CONTINUE</a>
                     </div>
                 </body>
             </html>`,
