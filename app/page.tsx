@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/connect-wallet";
 import { ServerWalletSidebar } from "@/components/server-wallet-sidebar";
+import { LandingInfo } from "@/components/landing-info";
 import Link from "next/link";
 import { resolveEnsWithCcip } from "@/lib/ccip-read";
 import { Hex } from "viem";
@@ -269,7 +270,7 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-center px-6 -mt-16">
+      <main className="flex-1 flex flex-col items-center justify-center px-6 -mt-16 min-h-[90vh]">
 
         {/* NOT CONNECTED */}
         {!authenticated && (
@@ -506,6 +507,9 @@ export default function Home() {
           </Card>
         )}
       </main>
+
+      {/* Landing Info Section (Only show when not browsing) */}
+      {appState !== "BROWSER" && <LandingInfo />}
 
       {/* Sidebar Component */}
       {authenticated && (
